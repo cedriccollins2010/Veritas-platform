@@ -1,0 +1,42 @@
+# Contrôles exécutés automatiquement avant chaque commit.
+# Installation (une fois par poste) :  pip install pre-commit && pre-commit install
+# Tout vérifier à la main :            pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+      # Empêche de versionner par erreur une image disque ou une vraie pièce volumineuse.
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+
+  # Même version que dans backend/requirements-dev.txt, pour que le hook et la CI
+  # donnent exactement le même résultat.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  # Bloque le commit si un mot de passe, une clé ou un jeton apparaît dans le diff.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: ESLint (frontend)
+        language: system
+        entry: npm --prefix frontend run lint
+        files: ^frontend/.*\.(ts|tsx|js|mjs)$
+        pass_filenames: false

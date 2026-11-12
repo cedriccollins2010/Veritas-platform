@@ -1,0 +1,6 @@
+# Fichiers générés ou tiers : pas de code écrit pour VERITAS.
+frontend/node_modules/
+frontend/.next/
+backend/.venv/
+# Sources de documentation (contiennent des extraits de code illustratifs, non exécutés).
+documentation/
