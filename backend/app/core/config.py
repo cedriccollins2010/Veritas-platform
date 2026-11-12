@@ -8,7 +8,7 @@ l'environnement (fichier .env non versionné ou gestionnaire de secrets).
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Taille maximale d'un fichier téléversé, en mégaoctets (document de référence : 500 Mo).
     max_upload_size_mb: int = 500
 
+    # Durée de vie d'une session de connexion, en heures. Au-delà, il faut se reconnecter.
+    session_lifetime_hours: int = Field(default=12, ge=1, le=720)
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def split_origins(cls, value: str | list[str]) -> list[str]:
@@ -43,6 +46,12 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def secure_cookies(self) -> bool:
+        """Cookies « Secure » (envoyés seulement en HTTPS) partout sauf en développement,
+        où l'API est servie en HTTP sur la machine locale."""
+        return self.app_env != "development"
 
 
 @lru_cache

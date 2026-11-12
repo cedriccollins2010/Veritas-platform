@@ -26,7 +26,7 @@ La spécification à jour est le **Document de référence unifié** : `document
 | Sujet | Décision |
 | --- | --- |
 | Architecture | Monolithe modulaire FastAPI, un package Python par module |
-| Authentification | Cookie de session `HttpOnly` + `Secure` + `SameSite`, protection CSRF, sessions en base (`sessions.token_hash`). Aucun jeton dans le navigateur |
+| Authentification | Cookie de session `HttpOnly` + `Secure` + `SameSite=Lax`, sessions en base (seule l'empreinte SHA-256 du jeton, `sessions.token_hash`). Mots de passe Argon2id (`argon2-cffi`). CSRF : en-tête `X-CSRF-Token` = HMAC du jeton de session, vérifié sur tout `/api/v1` (ADR-0003) |
 | Organisations | `organization_id` obligatoire partout ; organisation personnelle créée à l'inscription ; toute requête filtre sur l'organisation |
 | Fichiers | Tout type, 500 Mo max (configurable) ; mode « empreinte seule » (`storage_mode = HASH_ONLY`, `hash_records.source = CLIENT`) |
 | Empreinte | SHA-256 en flux, `app/crypto/hash_service.py` |
@@ -116,7 +116,7 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
 - [ ] **Phase 2 — Moteur de preuve** (prochaine) : dans l'ordre suggéré
   1. ~~Modèles ORM SQLAlchemy correspondant à la migration 0001.~~ Fait.
      Migration 0002 : rôle applicatif à privilèges minimaux (correction n° 5 du document de référence). Fait.
-  2. Authentification minimale : inscription (avec organisation personnelle), connexion, déconnexion, `/auth/me`, cookie de session, CSRF.
+  2. ~~Authentification minimale~~ Fait (ADR-0003). Routes protégées : dépendances `CurrentUser` / `CurrentOrganization` (`app/auth/dependencies.py`). La garde CSRF s'applique à tout `/api/v1` ; une nouvelle exemption s'ajoute à `CSRF_EXEMPT_PATHS` avec une justification.
   3. Stockage objet : interface `Storage` + implémentation disque local pour le dev, puis S3 (MinIO dans Docker Compose).
   4. `POST /api/v1/evidence` : réception en flux vers un fichier temporaire, limite de taille, SHA-256, stockage, premier événement de possession, état `HASHED`.
   5. Mode empreinte seule.
