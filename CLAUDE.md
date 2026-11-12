@@ -12,7 +12,7 @@ VERITAS transforme un fichier en **dossier de preuve numérique** qu'un tiers pe
 
 ## Document de référence
 
-La spécification à jour est le **Document de référence unifié** (doc Claude, à exporter en Markdown dans `documentation/requirements/`). Les quatre documents d'origine sont dans `documentation/sources/` : ils sont **remplacés** par le document unifié en cas de contradiction. Décisions clés :
+La spécification à jour est le **Document de référence unifié** : `documentation/requirements/veritas-reference.md` (export Markdown d'un doc Claude ; modifier le doc puis réexporter, ne pas éditer le fichier à la main). Les quatre documents d'origine sont dans `documentation/sources/` : ils sont **remplacés** par le document unifié en cas de contradiction. Décisions clés :
 
 | Sujet | Décision |
 | --- | --- |
