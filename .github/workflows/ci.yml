@@ -40,6 +40,8 @@ jobs:
         run: ruff check . && ruff format --check .
       - name: Migrations (montée, descente, remontée)
         run: alembic upgrade head && alembic downgrade base && alembic upgrade head
+      - name: Modèles ORM conformes au schéma migré
+        run: alembic check
       - name: Tests
         run: pytest -q
 

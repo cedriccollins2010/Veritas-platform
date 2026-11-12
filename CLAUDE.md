@@ -73,8 +73,10 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
 
 ## Base de données
 
-- Les migrations sont **écrites à la main** en SQL. `target_metadata = None` dans `migrations/env.py` : **ne pas utiliser `alembic revision --autogenerate`** tant que les modèles ORM (phase 2) ne décrivent pas toutes les tables, sinon Alembic proposera de les supprimer.
-- Les modèles ORM, quand ils seront écrits, doivent correspondre exactement à la migration 0001.
+- Modèles ORM : `app/<module>/models.py`, réunis par `app/database/models.py` (`target_metadata` d'Alembic). Ils correspondent exactement au schéma migré ; `tests/test_orm_schema.py` et `alembic check` (CI) le vérifient. Toute modification de schéma touche **les deux** : migration et modèle.
+- Les migrations restent écrites en SQL et relues à la main. `alembic revision --autogenerate` peut servir de brouillon, mais il ne voit ni les déclencheurs, ni les fonctions, ni le contenu des `CHECK`.
+- Valeurs énumérées : `StrEnum` Python + `CHECK ... IN (...)` construit par `sql_in()` ; pas de type `ENUM` PostgreSQL. Les noms de contraintes suivent la convention de PostgreSQL (`NAMING_CONVENTION` dans `database/base.py`).
+- `custody_events` : en plus du déclencheur, l'ORM lève `AppendOnlyViolation` sur toute modification ou suppression.
 - `custody_events` est append-only : un déclencheur refuse `UPDATE`, `DELETE` et `TRUNCATE`. Ne jamais contourner ce déclencheur ; une correction s'enregistre comme un nouvel événement.
 - Pas de suppression en cascade. Identifiants UUID, dates `TIMESTAMPTZ` en UTC.
 - Toute nouvelle migration doit passer le cycle `upgrade head → downgrade base → upgrade head` (la CI le vérifie).
@@ -100,7 +102,7 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
 
 - [x] **Sprint 1 — Socle technique** : FastAPI, Next.js, PostgreSQL, Docker Compose, Alembic (schéma complet), `/health` et `/api/v1/health/ready`, page d'état frontend, module SHA-256 testé, CI GitHub Actions.
 - [ ] **Phase 2 — Moteur de preuve** (prochaine) : dans l'ordre suggéré
-  1. Modèles ORM SQLAlchemy correspondant à la migration 0001.
+  1. ~~Modèles ORM SQLAlchemy correspondant à la migration 0001.~~ Fait.
   2. Authentification minimale : inscription (avec organisation personnelle), connexion, déconnexion, `/auth/me`, cookie de session, CSRF.
   3. Stockage objet : interface `Storage` + implémentation disque local pour le dev, puis S3 (MinIO dans Docker Compose).
   4. `POST /api/v1/evidence` : réception en flux vers un fichier temporaire, limite de taille, SHA-256, stockage, premier événement de possession, état `HASHED`.

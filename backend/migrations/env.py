@@ -6,6 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
+from app.database.models import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
@@ -13,10 +14,11 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Les migrations sont écrites à la main tant que les modèles ORM n'existent pas (phase 2).
-# Ne pas utiliser « alembic revision --autogenerate » avant que app.database.base.Base
-# décrive toutes les tables : l'autogénération proposerait de les supprimer.
-target_metadata = None
+# Les modèles ORM (app/<module>/models.py, réunis par app.database.models) décrivent
+# tout le schéma ; tests/test_orm_schema.py et « alembic check » le vérifient.
+# L'autogénération ne voit ni les déclencheurs, ni les fonctions, ni le contenu des
+# CHECK : toute migration générée doit être relue, et complétée à la main si besoin.
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
@@ -37,7 +39,12 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+        )
         with context.begin_transaction():
             context.run_migrations()
 
