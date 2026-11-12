@@ -13,7 +13,7 @@ Prérequis : Docker Desktop (ou Docker Engine avec Compose) et Git.
 ```bash
 git clone <url-du-depot> veritas-platform
 cd veritas-platform
-cp .env.example .env        # puis remplacer POSTGRES_PASSWORD
+cp .env.example .env        # puis remplacer POSTGRES_PASSWORD et APP_DB_PASSWORD
 docker compose up --build
 ```
 
@@ -26,6 +26,14 @@ docker compose up --build
 
 Arrêt : `docker compose down`. Pour effacer aussi la base locale : `docker compose down -v` (**supprime les données**).
 
+Base créée avant la migration 0002 (compte applicatif absent) : la recréer avec `docker compose down -v`, ou créer le compte dans la base existante :
+
+```bash
+docker compose up -d db          # recrée le conteneur avec APP_DB_PASSWORD
+docker compose exec db bash /docker-entrypoint-initdb.d/10-create-app-user.sh
+docker compose up --build
+```
+
 ## Développement sans Docker
 
 **Backend** (Python 3.12 ou plus récent), depuis `backend/` :
@@ -34,10 +42,14 @@ Arrêt : `docker compose down`. Pour effacer aussi la base locale : `docker comp
 python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell : .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
-alembic upgrade head               # nécessite PostgreSQL (DATABASE_URL dans .env)
-uvicorn app.main:app --reload
+alembic upgrade head               # compte propriétaire : MIGRATION_DATABASE_URL dans .env
+# Une fois : compte de l'API (variables PG* = compte propriétaire, APP_DB_PASSWORD = .env)
+bash ../infrastructure/docker/postgres/create-app-user.sh
+uvicorn app.main:app --reload      # compte de l'API : DATABASE_URL dans .env
 pytest -q
 ```
+
+Deux comptes PostgreSQL : le propriétaire des tables ne sert qu'aux migrations, l'API se connecte avec un compte aux droits minimaux. Voir `documentation/architecture/ADR-0002-roles-postgresql.md`.
 
 **Frontend** (Node.js 22), depuis `frontend/` :
 

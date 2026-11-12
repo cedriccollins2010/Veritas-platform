@@ -34,14 +34,15 @@ Ce que VERITAS ne prouve pas, et que l'interface doit rappeler : la véracité d
 
 ```bash
 # Tout l'environnement (PostgreSQL, API, frontend)
-cp .env.example .env            # puis changer POSTGRES_PASSWORD
+cp .env.example .env            # puis changer POSTGRES_PASSWORD et APP_DB_PASSWORD
 docker compose up --build       # API : http://localhost:8000/docs · Frontend : http://localhost:3000
 
 # Backend seul (depuis backend/)
 python -m venv .venv && source .venv/bin/activate   # Windows : .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+alembic upgrade head            # MIGRATION_DATABASE_URL (propriétaire)
+bash ../infrastructure/docker/postgres/create-app-user.sh   # une fois : compte de l'API
+uvicorn app.main:app --reload   # DATABASE_URL (compte de l'API)
 pytest -q                       # les tests marqués integration sont ignorés si PostgreSQL est absent
 ruff check . && ruff format .
 
@@ -77,7 +78,9 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
 - Les migrations restent écrites en SQL et relues à la main. `alembic revision --autogenerate` peut servir de brouillon, mais il ne voit ni les déclencheurs, ni les fonctions, ni le contenu des `CHECK`.
 - Valeurs énumérées : `StrEnum` Python + `CHECK ... IN (...)` construit par `sql_in()` ; pas de type `ENUM` PostgreSQL. Les noms de contraintes suivent la convention de PostgreSQL (`NAMING_CONVENTION` dans `database/base.py`).
 - `custody_events` : en plus du déclencheur, l'ORM lève `AppendOnlyViolation` sur toute modification ou suppression.
-- `custody_events` est append-only : un déclencheur refuse `UPDATE`, `DELETE` et `TRUNCATE`. Ne jamais contourner ce déclencheur ; une correction s'enregistre comme un nouvel événement.
+- `custody_events` est append-only : un déclencheur refuse `UPDATE`, `DELETE` et `TRUNCATE`, et le compte de l'API n'a pas ces droits. Ne jamais contourner ce déclencheur ; une correction s'enregistre comme un nouvel événement.
+- **Deux comptes PostgreSQL** (ADR-0002) : `veritas_user` possède les tables et ne sert qu'aux migrations (`MIGRATION_DATABASE_URL`) ; l'API utilise `veritas_app_user` (`DATABASE_URL`), membre du rôle `veritas_app`. Ne jamais donner le compte propriétaire à l'API.
+- **Toute nouvelle table reçoit ses droits** (`GRANT ... TO veritas_app`) dans la migration qui la crée, et une ligne dans `EXPECTED_PRIVILEGES` de `tests/test_database_privileges.py`. Jamais de `TRUNCATE`, et `UPDATE`/`DELETE` seulement si c'est justifié.
 - Pas de suppression en cascade. Identifiants UUID, dates `TIMESTAMPTZ` en UTC.
 - Toute nouvelle migration doit passer le cycle `upgrade head → downgrade base → upgrade head` (la CI le vérifie).
 
@@ -103,6 +106,7 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
 - [x] **Sprint 1 — Socle technique** : FastAPI, Next.js, PostgreSQL, Docker Compose, Alembic (schéma complet), `/health` et `/api/v1/health/ready`, page d'état frontend, module SHA-256 testé, CI GitHub Actions.
 - [ ] **Phase 2 — Moteur de preuve** (prochaine) : dans l'ordre suggéré
   1. ~~Modèles ORM SQLAlchemy correspondant à la migration 0001.~~ Fait.
+     Migration 0002 : rôle applicatif à privilèges minimaux (correction n° 5 du document de référence). Fait.
   2. Authentification minimale : inscription (avec organisation personnelle), connexion, déconnexion, `/auth/me`, cookie de session, CSRF.
   3. Stockage objet : interface `Storage` + implémentation disque local pour le dev, puis S3 (MinIO dans Docker Compose).
   4. `POST /api/v1/evidence` : réception en flux vers un fichier temporaire, limite de taille, SHA-256, stockage, premier événement de possession, état `HASHED`.

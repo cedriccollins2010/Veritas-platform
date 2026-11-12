@@ -18,4 +18,6 @@ USER veritas
 EXPOSE 8000
 
 # Applique les migrations puis démarre l'API.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Les migrations sont lancées par le service « migrate » de Docker Compose, avec le
+# compte propriétaire ; ce conteneur ne connaît que le compte de l'API.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

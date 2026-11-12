@@ -18,7 +18,13 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "staging", "production"] = "development"
 
     # Base de données. En Docker Compose, l'hôte est « db » ; en local, « localhost ».
-    database_url: str = "postgresql+psycopg://veritas_user:change_me@localhost:5432/veritas"
+    # Compte de l'API : membre de veritas_app, privilèges minimaux (migration 0002).
+    database_url: str = "postgresql+psycopg://veritas_app_user:change_me_app@localhost:5432/veritas"
+    # Compte propriétaire des tables, utilisé uniquement par Alembic. Jamais transmis à
+    # l'API en fonctionnement : il peut désactiver le déclencheur append-only.
+    migration_database_url: str = (
+        "postgresql+psycopg://veritas_user:change_me@localhost:5432/veritas"
+    )
 
     # Origines autorisées à appeler l'API depuis un navigateur (frontend Next.js).
     # Format dans .env : CORS_ORIGINS=http://localhost:3000,https://app.exemple.ca

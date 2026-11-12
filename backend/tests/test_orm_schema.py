@@ -11,11 +11,10 @@ from enum import StrEnum
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import CheckConstraint, create_engine, inspect
+from sqlalchemy import CheckConstraint, inspect
 from sqlalchemy.orm import Session
 
 from app.audit.models import AccessOutcome
-from app.core.config import get_settings
 from app.custody.models import AppendOnlyViolation
 from app.database import models
 from app.database.models import Base
@@ -40,10 +39,8 @@ IGNORED_TABLES = {"alembic_version"}
 
 
 @pytest.fixture(scope="module")
-def engine():
-    engine = create_engine(get_settings().database_url)
-    yield engine
-    engine.dispose()
+def engine(app_engine):
+    return app_engine
 
 
 def _include_object(obj, name, type_, reflected, compare_to) -> bool:

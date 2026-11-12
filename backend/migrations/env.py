@@ -9,7 +9,8 @@ from app.core.config import get_settings
 from app.database.models import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Les migrations utilisent le compte propriétaire, pas celui de l'API.
+config.set_main_option("sqlalchemy.url", get_settings().migration_database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
