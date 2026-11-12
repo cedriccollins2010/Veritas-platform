@@ -27,7 +27,9 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       APP_ENV: test
-      DATABASE_URL: postgresql+psycopg://veritas_user:ci_password@localhost:5432/veritas
+      # Propriétaire des tables (migrations) et compte de l'API (tests), comme en production.
+      MIGRATION_DATABASE_URL: postgresql+psycopg://veritas_user:ci_password@localhost:5432/veritas
+      DATABASE_URL: postgresql+psycopg://veritas_app_user:ci_app_password@localhost:5432/veritas
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,6 +42,14 @@ jobs:
         run: ruff check . && ruff format --check .
       - name: Migrations (montée, descente, remontée)
         run: alembic upgrade head && alembic downgrade base && alembic upgrade head
+      - name: Compte applicatif (même script que Docker Compose)
+        run: bash ../infrastructure/docker/postgres/create-app-user.sh
+        env:
+          PGHOST: localhost
+          PGUSER: veritas_user
+          PGPASSWORD: ci_password
+          PGDATABASE: veritas
+          APP_DB_PASSWORD: ci_app_password
       - name: Modèles ORM conformes au schéma migré
         run: alembic check
       - name: Tests

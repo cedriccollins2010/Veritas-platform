@@ -1,6 +1,8 @@
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, text
 
 from app.core.config import get_settings
 from app.main import app
@@ -9,6 +11,22 @@ from app.main import app
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture(scope="session")
+def app_engine() -> Iterator[Engine]:
+    """Connexion avec le compte de l'API (DATABASE_URL), comme en production."""
+    engine = create_engine(get_settings().database_url)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def owner_engine() -> Iterator[Engine]:
+    """Connexion avec le compte propriétaire (MIGRATION_DATABASE_URL)."""
+    engine = create_engine(get_settings().migration_database_url)
+    yield engine
+    engine.dispose()
 
 
 def _database_available() -> bool:

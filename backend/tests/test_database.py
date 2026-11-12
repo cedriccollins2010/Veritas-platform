@@ -1,26 +1,33 @@
 """Tests d'intégration : nécessitent PostgreSQL avec les migrations appliquées
-(alembic upgrade head). Ignorés automatiquement si la base est inaccessible."""
+(alembic upgrade head) et le compte applicatif créé. Ignorés si la base est inaccessible.
+
+Les tests passent par le compte de l'API (DATABASE_URL), sauf mention contraire."""
 
 import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import DBAPIError, IntegrityError
-
-from app.core.config import get_settings
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-def connection():
-    engine = create_engine(get_settings().database_url)
+def _rolled_back(engine):
     with engine.connect() as conn:
         transaction = conn.begin()
         yield conn
         transaction.rollback()
-    engine.dispose()
+
+
+@pytest.fixture
+def connection(app_engine):
+    yield from _rolled_back(app_engine)
+
+
+@pytest.fixture
+def owner_connection(owner_engine):
+    yield from _rolled_back(owner_engine)
 
 
 def _create_evidence(conn) -> uuid.UUID:
@@ -63,19 +70,36 @@ def test_evidence_requires_an_organization(connection) -> None:
         )
 
 
-def test_custody_events_cannot_be_updated_or_deleted(connection) -> None:
+def test_api_account_has_no_update_or_delete_on_custody_events(connection) -> None:
+    """Première barrière : le compte de l'API n'a tout simplement pas le droit."""
     evidence_id = _create_evidence(connection)
     _insert_event(connection, evidence_id, 1, None, "a" * 64)
 
-    savepoint = connection.begin_nested()
-    with pytest.raises(DBAPIError, match="append-only"):
-        connection.execute(text("UPDATE custody_events SET event_type = 'FALSIFIED'"))
-    savepoint.rollback()
+    for statement in (
+        "UPDATE custody_events SET event_type = 'FALSIFIED'",
+        "DELETE FROM custody_events",
+        "TRUNCATE custody_events",
+    ):
+        savepoint = connection.begin_nested()
+        with pytest.raises(ProgrammingError, match="permission denied"):
+            connection.execute(text(statement))
+        savepoint.rollback()
 
-    savepoint = connection.begin_nested()
-    with pytest.raises(DBAPIError, match="append-only"):
-        connection.execute(text("DELETE FROM custody_events"))
-    savepoint.rollback()
+
+def test_trigger_blocks_even_the_table_owner(owner_connection) -> None:
+    """Seconde barrière : le déclencheur refuse aussi le propriétaire des tables."""
+    evidence_id = _create_evidence(owner_connection)
+    _insert_event(owner_connection, evidence_id, 1, None, "a" * 64)
+
+    for statement in (
+        "UPDATE custody_events SET event_type = 'FALSIFIED'",
+        "DELETE FROM custody_events",
+        "TRUNCATE custody_events",
+    ):
+        savepoint = owner_connection.begin_nested()
+        with pytest.raises(DBAPIError, match="append-only"):
+            owner_connection.execute(text(statement))
+        savepoint.rollback()
 
 
 def test_custody_sequence_is_unique_per_evidence(connection) -> None:

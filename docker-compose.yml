@@ -8,30 +8,48 @@ services:
       POSTGRES_DB: veritas
       POSTGRES_USER: veritas_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
+      # Lus par infrastructure/docker/postgres/create-app-user.sh au premier démarrage du volume.
+      APP_DB_USER: veritas_app_user
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?définir APP_DB_PASSWORD dans .env}
     ports:
       # Exposé seulement sur la machine locale, jamais sur le réseau.
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Exécuté une seule fois, quand le volume est vide.
+      - ./infrastructure/docker/postgres/create-app-user.sh:/docker-entrypoint-initdb.d/10-create-app-user.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U veritas_user -d veritas"]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  # Applique les migrations avec le compte propriétaire, puis s'arrête.
+  migrate:
+    build: ./backend
+    container_name: veritas-migrate
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      MIGRATION_DATABASE_URL: postgresql+psycopg://veritas_user:${POSTGRES_PASSWORD}@db:5432/veritas
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   backend:
     build: ./backend
     container_name: veritas-backend
     environment:
       APP_ENV: ${APP_ENV:-development}
-      DATABASE_URL: postgresql+psycopg://veritas_user:${POSTGRES_PASSWORD}@db:5432/veritas
+      # Compte de l'API uniquement (privilèges minimaux, voir migration 0002).
+      DATABASE_URL: postgresql+psycopg://veritas_app_user:${APP_DB_PASSWORD}@db:5432/veritas
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-500}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
