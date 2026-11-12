@@ -1,0 +1,33 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Données locales et preuves de test (ne jamais versionner de vraies pièces)
+/data/
+*.tsr
+*.tsq
+!tests/fixtures/**/*.tsr
+!tests/fixtures/**/*.tsq
+
+# Éditeurs et système
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

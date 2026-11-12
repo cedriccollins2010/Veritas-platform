@@ -1,0 +1,11 @@
+# Dépendances d'exécution du backend VERITAS.
+# Versions figées : toute mise à jour se fait volontairement, dans une branche dédiée.
+fastapi==0.162.5
+uvicorn[standard]==0.54.0
+SQLAlchemy==2.1.8
+psycopg[binary]==3.3.8
+alembic==1.20.1
+pydantic==2.14.3
+pydantic-settings==2.16.2
+python-multipart==0.0.33
+cryptography==50.0.2
