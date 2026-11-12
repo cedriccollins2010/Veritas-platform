@@ -6,6 +6,7 @@ l'environnement (fichier .env non versionné ou gestionnaire de secrets).
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
@@ -32,6 +33,15 @@ class Settings(BaseSettings):
 
     # Taille maximale d'un fichier téléversé, en mégaoctets (document de référence : 500 Mo).
     max_upload_size_mb: int = 500
+
+    # Stockage des fichiers originaux : « local » (disque) ou « s3 » (compatible S3).
+    storage_backend: Literal["local", "s3"] = "local"
+    # Dossier du stockage local. Par défaut hors du dépôt, dans le dossier personnel.
+    local_storage_path: Path = Path.home() / ".veritas" / "storage"
+    # Stockage S3. Les identifiants viennent de AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
+    s3_endpoint_url: str | None = None  # None = AWS ; sinon l'adresse du service compatible
+    s3_bucket: str | None = None
+    s3_region: str = "us-east-1"
 
     # Durée de vie d'une session de connexion, en heures. Au-delà, il faut se reconnecter.
     session_lifetime_hours: int = Field(default=12, ge=1, le=720)

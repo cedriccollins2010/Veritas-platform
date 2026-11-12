@@ -45,6 +45,11 @@ services:
       DATABASE_URL: postgresql+psycopg://veritas_app_user:${APP_DB_PASSWORD}@db:5432/veritas
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-500}
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_PATH: /data/storage
+    volumes:
+      # Fichiers originaux, conservés quand le conteneur est recréé.
+      - evidence_data:/data/storage
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -71,3 +76,4 @@ services:
 
 volumes:
   postgres_data:
+  evidence_data:
