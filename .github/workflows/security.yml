@@ -1,0 +1,47 @@
+name: Security
+
+# Analyses de sécurité, en complément de la CI :
+# - gitleaks : secrets (mots de passe, clés, jetons) dans tout l'historique Git ;
+# - Semgrep : failles connues dans le code Python, TypeScript, Dockerfiles et workflows.
+# Les règles Bandit sont déjà appliquées par ruff (sélection « S » dans backend/pyproject.toml).
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  schedule:
+    # Chaque lundi à 11 h UTC : de nouvelles règles peuvent révéler une faille dans du code inchangé.
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tout l'historique, pas seulement le dernier commit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep
+        run: >-
+          semgrep scan
+          --config p/python
+          --config p/typescript
+          --config p/react
+          --config p/nextjs
+          --config p/dockerfile
+          --config p/github-actions
+          --metrics=off
+          --error

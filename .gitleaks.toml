@@ -1,0 +1,15 @@
+# Configuration de gitleaks : règles par défaut, plus des exceptions documentées.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valeurs factices volontaires, sans valeur réelle"
+paths = [
+  # Mot de passe d'exemple « change_me » et URL de base locale.
+  '''^\.env\.example$''',
+]
+regexes = [
+  # Mot de passe jetable de la base PostgreSQL éphémère utilisée par la CI.
+  '''ci_password''',
+  '''change_me''',
+]

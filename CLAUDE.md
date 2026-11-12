@@ -10,6 +10,15 @@ VERITAS transforme un fichier en **dossier de preuve numérique** qu'un tiers pe
 - Avant d'ajouter une dépendance ou une technologie, justifie-la. Pas de microservices, Kubernetes, blockchain ni modèle d'IA dans le MVP.
 - Ne marque jamais une tâche comme terminée si les tests, le lint ou le build échouent.
 
+## Flux de travail Git
+
+- Le travail est suivi par des **issues GitHub** (libellé `phase-2` pour l'étape en cours). Commence chaque session en lisant l'issue concernée (`gh issue view <n>`).
+- Une issue = une branche (`feature/<n>-court-nom`, ou `fix/`, `chore/`) = une pull request vers `main`, qui contient `Closes #<n>`. Pas de push direct sur `main`.
+- Remplis le modèle de pull request, en particulier « Pourquoi » et « Points de sécurité à relire » : la développeuse relit chaque PR avant de fusionner.
+- Deux workflows doivent réussir : `CI` (lint, migrations, tests, build) et `Security` (gitleaks, Semgrep). Un échec Semgrep se corrige dans le code ; une exception (`# nosemgrep`) ne s'ajoute qu'avec une justification écrite à côté.
+- pre-commit tourne avant chaque commit (ruff, ESLint, gitleaks, fichiers volumineux). Ne jamais le contourner avec `--no-verify`.
+- Dependabot ouvre des PR de mise à jour : vérifier que la CI passe et lire le changelog avant de fusionner, surtout pour `cryptography`, `rfc3161-client`, FastAPI et Next.js.
+
 ## Document de référence
 
 La spécification à jour est le **Document de référence unifié** (doc Claude, à exporter en Markdown dans `documentation/requirements/`). Les quatre documents d'origine sont dans `documentation/sources/` : ils sont **remplacés** par le document unifié en cas de contradiction. Décisions clés :

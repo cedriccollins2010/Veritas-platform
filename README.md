@@ -46,6 +46,17 @@ npm install
 npm run dev
 ```
 
+**Contrôles avant commit** (une fois par poste, depuis la racine) :
+
+```bash
+pip install pre-commit
+pre-commit install        # ruff, ESLint, gitleaks et contrôles de fichiers à chaque commit
+```
+
+## Contribuer
+
+Chaque changement part d'une issue, se fait dans une branche et arrive dans `main` par une pull request dont les workflows `CI` et `Security` doivent réussir. Les mises à jour de dépendances sont proposées par Dependabot.
+
 ## Organisation du dépôt
 
 ```text
