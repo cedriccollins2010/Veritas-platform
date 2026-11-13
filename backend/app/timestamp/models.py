@@ -5,7 +5,17 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, sql_in
@@ -47,6 +57,13 @@ class TimestampRecord(Base):
             "OR (token_storage_key IS NOT NULL AND generation_time IS NOT NULL)",
             name="check1",
         ),
+        # Ancrage (migration 0003) : le numéro de séquence ancré existe si et seulement
+        # si l'horodatage porte sur la tête de chaîne.
+        CheckConstraint("anchored_sequence_number >= 1", name="anchored_sequence_number_check"),
+        CheckConstraint(
+            "(purpose = 'CHAIN_HEAD') = (anchored_sequence_number IS NOT NULL)",
+            name="anchor_check",
+        ),
         Index("idx_timestamp_evidence", "evidence_id"),
         Index(
             "idx_timestamp_pending",
@@ -76,3 +93,5 @@ class TimestampRecord(Base):
     error_detail: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Ancrage : numéro de séquence de l'événement dont l'empreinte est horodatée.
+    anchored_sequence_number: Mapped[int | None] = mapped_column(BigInteger)

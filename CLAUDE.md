@@ -71,7 +71,7 @@ backend/app/
   api/v1/              routes HTTP (préfixe /api/v1) — aucune logique métier ici
   auth/ organizations/ evidence/ storage/ crypto/ timestamp/
   custody/ verification/ reports/ audit/      un module = une responsabilité
-backend/migrations/    Alembic ; 0001 = schéma initial complet
+backend/migrations/    Alembic ; 0001 = schéma initial complet, 0002 = rôle applicatif, 0003 = numéro ancré
 backend/tests/
 frontend/src/app/      App Router Next.js
 frontend/src/services/ appels à l'API
@@ -126,7 +126,8 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
   1. ~~Client RFC 3161 (#23)~~ Fait (ADR-0008) : `app/timestamp/` ; requête encodée par VERITAS (`request.py`) et relue par `rfc3161-client` ; tests sur une TSA locale OpenSSL, aucun appel réseau sauf `tsa_live`.
   2. ~~Vérification complète d'un jeton (#24)~~ Fait (ADR-0009) : `verify_timestamp_token` (pure, `app/crypto/`), racines dans `app/timestamp/trust/` (ajout = PR relue, provenance documentée). Enregistrer l'empreinte du `.tsr` dans la chaîne de possession (malléabilité CMS).
   3. ~~Horodatage d'une preuve et reprise sur panne (#25)~~ Fait (ADR-0010) : `app/evidence/timestamping.py` ; tâche de fond après le dépôt, relance `POST /evidence/{id}/timestamp`. `CERTIFIED` uniquement avec un jeton `VALID` rattaché (`TIMESTAMP_ATTACHED`). Dans les tests, la TSA est « indisponible » par défaut.
-  4. Ancrage de la tête de chaîne (#26) · 5. Manifeste v1.1 (#27).
+  4. ~~Ancrage de la tête de chaîne (#26)~~ Fait (ADR-0011) : `POST /evidence/{id}/anchor` (`app/evidence/anchoring.py`), migration 0003 (`anchored_sequence_number`), `verify_anchor` (pure). Un ancrage est réutilisé si seul son `CHAIN_ANCHORED` le suit.
+  5. Manifeste v1.1 (#27).
 - [ ] Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
 
 Critères d'acceptation du MVP (T01 à T13) : voir le document de référence, section « Plan de réalisation ».

@@ -27,8 +27,8 @@ from app.custody.schemas import (
     EvidenceEventsOut,
 )
 from app.database.session import get_db, get_session_scope
-from app.evidence import service, timestamping
-from app.evidence.schemas import EvidenceOut, HashOnlyRequest
+from app.evidence import anchoring, service, timestamping
+from app.evidence.schemas import AnchorOut, EvidenceOut, HashOnlyRequest
 from app.evidence.upload import (
     InvalidUploadError,
     UploadTooLargeError,
@@ -334,4 +334,61 @@ def get_evidence_manifest(
             "ETag": f'"{manifest.digest}"',
             "X-Content-Type-Options": "nosniff",
         },
+    )
+
+
+@router.post(
+    "/{evidence_id}/anchor",
+    response_model=AnchorOut,
+    responses={
+        409: {"description": "Preuve incomplète : rien à ancrer"},
+        502: {"description": "Jeton reçu mais refusé par la vérification"},
+        503: {"description": "TSA indisponible : la tête de chaîne n'est pas ancrée"},
+    },
+)
+def anchor_evidence_chain(
+    evidence_id: uuid.UUID,
+    user: CurrentUser,
+    membership: CurrentOrganization,
+    db: Db,
+    storage: StorageDep,
+    provider: ProviderDep,
+    roots: RootsDep,
+    client: Client,
+) -> AnchorOut:
+    """Fait horodater la tête de la chaîne de possession par la TSA (ancrage), ou
+    réutilise le dernier ancrage s'il couvre déjà la tête. Appelé avant un export."""
+    if service.get_for_organization(db, membership.organization.id, evidence_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    try:
+        attempt = anchoring.anchor_chain_head(
+            db,
+            evidence_id,
+            provider=provider,
+            storage=storage,
+            trust_roots=roots,
+            actor_id=user.id,
+            client=client,
+        )
+    except anchoring.NotAnchorableError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(error)) from None
+    outcome = anchoring.AnchorOutcome
+    if attempt.outcome is outcome.TSA_UNAVAILABLE:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Autorité d'horodatage indisponible : la tête de chaîne n'est pas ancrée.",
+        )
+    if attempt.outcome is outcome.TOKEN_INVALID:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Jeton d'ancrage refusé par la vérification : la tête n'est pas ancrée.",
+        )
+    record = attempt.record
+    return AnchorOut(
+        status=attempt.outcome.value,
+        timestamp_record_id=record.id,
+        anchored_sequence_number=record.anchored_sequence_number,
+        anchored_hash=record.message_imprint,
+        tsa_name=record.tsa_name,
+        generation_time=record.generation_time,
     )
