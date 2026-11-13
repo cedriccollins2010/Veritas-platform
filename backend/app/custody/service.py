@@ -1,0 +1,77 @@
+"""Ajout d'événements à la chaîne de possession d'une preuve.
+
+La chaîne n'est jamais modifiée : on ajoute un événement à la fin. Le calcul de
+l'empreinte est délégué à app.crypto.custody_chain (format de référence).
+"""
+
+import uuid
+from datetime import datetime
+from enum import StrEnum
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.crypto import canonical, custody_chain
+from app.custody.models import CustodyEvent
+from app.evidence.models import Evidence
+
+
+class CustodyEventType(StrEnum):
+    # Le fichier a été reçu, haché par le serveur et stocké.
+    FILE_RECEIVED = "FILE_RECEIVED"
+
+
+def append_event(
+    db: Session,
+    *,
+    evidence_id: uuid.UUID,
+    event_type: CustodyEventType,
+    actor_id: uuid.UUID | None,
+    occurred_at: datetime,
+    data: dict[str, Any],
+) -> CustodyEvent:
+    """Ajoute un événement en fin de chaîne, dans la transaction en cours.
+
+    La preuve est d'abord verrouillée (SELECT ... FOR UPDATE) jusqu'à la fin de la
+    transaction : deux ajouts simultanés sur la même preuve passent l'un après l'autre
+    et ne peuvent pas recevoir le même numéro de séquence ni le même prédécesseur.
+    """
+    db.execute(select(Evidence.id).where(Evidence.id == evidence_id).with_for_update()).one()
+
+    last = db.scalars(
+        select(CustodyEvent)
+        .where(CustodyEvent.evidence_id == evidence_id)
+        .order_by(CustodyEvent.sequence_number.desc())
+        .limit(1)
+    ).first()
+    sequence_number = last.sequence_number + 1 if last else 1
+    previous_hash = last.event_hash if last else None
+
+    # L'identifiant est choisi ici, et non par la base, parce qu'il fait partie des
+    # champs hachés.
+    event_id = uuid.uuid4()
+    payload = custody_chain.event_payload(
+        event_id=str(event_id),
+        evidence_id=str(evidence_id),
+        sequence_number=sequence_number,
+        event_type=event_type.value,
+        actor_id=str(actor_id) if actor_id else None,
+        occurred_at=occurred_at,
+        data=data,
+    )
+    event = CustodyEvent(
+        id=event_id,
+        evidence_id=evidence_id,
+        actor_id=actor_id,
+        event_type=event_type.value,
+        sequence_number=sequence_number,
+        occurred_at=occurred_at,
+        event_data=data,
+        canonicalization=canonical.ALGORITHM,
+        previous_event_hash=previous_hash,
+        event_hash=custody_chain.event_hash(previous_hash, payload),
+    )
+    db.add(event)
+    db.flush()
+    return event

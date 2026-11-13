@@ -13,3 +13,5 @@ cryptography==50.0.2
 argon2-cffi==25.1.0
 # Stockage compatible S3 (SDK officiel AWS, fonctionne avec tout service compatible S3).
 boto3==1.43.121
+# Canonicalisation JSON RFC 8785 pour la chaîne de possession (Trail of Bits, sans dépendance).
+rfc8785==0.1.4

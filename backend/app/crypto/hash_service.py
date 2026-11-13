@@ -18,6 +18,23 @@ ENGINE_VERSION = "1.0"
 CHUNK_SIZE = 1024 * 1024  # 1 Mo
 
 
+class IncrementalSha256:
+    """Empreinte calculée au fil de l'eau, morceau par morceau.
+
+    Sert quand les données arrivent par le réseau : chaque morceau est haché à son
+    arrivée, et le fichier n'a jamais besoin d'être relu ni chargé en mémoire.
+    """
+
+    def __init__(self) -> None:
+        self._digest = hashlib.sha256()
+
+    def update(self, data: bytes | bytearray | memoryview) -> None:
+        self._digest.update(data)
+
+    def hexdigest(self) -> str:
+        return self._digest.hexdigest()
+
+
 def sha256_stream(stream: BinaryIO, chunk_size: int = CHUNK_SIZE) -> str:
     """Calcule l'empreinte d'un flux binaire déjà ouvert, sans le fermer."""
     digest = hashlib.sha256()

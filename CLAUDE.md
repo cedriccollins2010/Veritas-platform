@@ -118,9 +118,9 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
      Migration 0002 : rôle applicatif à privilèges minimaux (correction n° 5 du document de référence). Fait.
   2. ~~Authentification minimale~~ Fait (ADR-0003). Routes protégées : dépendances `CurrentUser` / `CurrentOrganization` (`app/auth/dependencies.py`). La garde CSRF s'applique à tout `/api/v1` ; une nouvelle exemption s'ajoute à `CSRF_EXEMPT_PATHS` avec une justification.
   3. ~~Stockage objet~~ Fait (ADR-0004) : `get_storage()` dans `app/storage/` ; clés `new_storage_key()` uniquement ; un fichier n'est jamais réécrit. Pas de serveur S3 dans Docker Compose (MinIO n'est plus distribué) : disque local en dev, S3 géré au pilote.
-  4. `POST /api/v1/evidence` : réception en flux vers un fichier temporaire, limite de taille, SHA-256, stockage, premier événement de possession, état `HASHED`.
+  4. ~~`POST /api/v1/evidence`~~ Fait (ADR-0005) : réception en flux (`app/evidence/upload.py`), `GET /evidence` et `/evidence/{id}` filtrés sur l'organisation. Format de chaîne `veritas-custody-v1` défini dans `app/crypto/custody_chain.py` ; ajouter un événement : `app.custody.service.append_event`.
   5. Mode empreinte seule.
-  6. Canonicalisation RFC 8785 et chaîne de possession, avec tests (modification, suppression, réordonnancement, rupture).
+  6. Chaîne de possession : canonicalisation et calcul faits (ADR-0005) ; reste la vérification de la chaîne et les tests d'altération (modification, suppression, réordonnancement, rupture, insertions concurrentes).
   7. Manifeste JSON v1 et `GET /evidence/{id}/manifest`.
 - [ ] Phase 3 — Horodatage et ancrage · Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
 
