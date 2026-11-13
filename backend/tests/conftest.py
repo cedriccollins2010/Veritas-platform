@@ -77,3 +77,23 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture(scope="session")
+def tsa(tmp_path_factory):
+    """Autorité d'horodatage de test (OpenSSL), partagée par les tests de la session."""
+    from tests.local_tsa import OPENSSL, create_local_tsa
+
+    if OPENSSL is None:
+        pytest.skip("openssl absent")
+    return create_local_tsa(tmp_path_factory.mktemp("tsa"))
+
+
+@pytest.fixture(scope="session")
+def rogue_tsa(tmp_path_factory):
+    """Seconde autorité, absente des racines de confiance des tests."""
+    from tests.local_tsa import OPENSSL, create_local_tsa
+
+    if OPENSSL is None:
+        pytest.skip("openssl absent")
+    return create_local_tsa(tmp_path_factory.mktemp("rogue"), name="Imposteur")

@@ -5,12 +5,9 @@ d'horodatage de test est créée localement avec OpenSSL (autorité racine + cer
 TSA), et répond à de vraies requêtes par de vrais jetons signés.
 """
 
-import shutil
 import socket
-import subprocess
 import threading
 import time
-from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
@@ -29,127 +26,15 @@ from app.timestamp.provider import (
 )
 from app.timestamp.request import TimestampRequestError, build_request
 from app.timestamp.service import create_provider, store_exchange
+from tests.local_tsa import OPENSSL, LocalTsa, run_openssl
 
-OPENSSL = shutil.which("openssl")
 needs_openssl = pytest.mark.skipif(OPENSSL is None, reason="openssl absent")
 DIGEST = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"  # SHA-256("abc")
 OTHER_DIGEST = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 
 def _run(*args: str, cwd: Path) -> bytes:
-    return subprocess.run(  # noqa: S603 - openssl, arguments contrôlés par le test
-        [OPENSSL, *args], cwd=cwd, check=True, capture_output=True
-    ).stdout
-
-
-@dataclass
-class LocalTsa:
-    """Autorité d'horodatage de test, pilotée par « openssl ts -reply »."""
-
-    directory: Path
-
-    @property
-    def ca(self) -> Path:
-        return self.directory / "ca.pem"
-
-    @property
-    def certificate(self) -> Path:
-        return self.directory / "tsa.pem"
-
-    def reply(self, request: bytes) -> bytes:
-        query = self.directory / f"q-{time.monotonic_ns()}.tsq"
-        query.write_bytes(request)
-        return _run(
-            "ts", "-reply", "-config", "ts.cnf", "-queryfile", str(query), cwd=self.directory
-        )
-
-    def verify_with_openssl(self, response: bytes, digest: str) -> bool:
-        token = self.directory / f"r-{time.monotonic_ns()}.tsr"
-        token.write_bytes(response)
-        result = subprocess.run(  # noqa: S603
-            [
-                OPENSSL,
-                "ts",
-                "-verify",
-                "-digest",
-                digest,
-                "-in",
-                str(token),
-                "-CAfile",
-                str(self.ca),
-                "-untrusted",
-                str(self.certificate),
-            ],
-            cwd=self.directory,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return result.returncode == 0 and "Verification: OK" in result.stdout
-
-
-@pytest.fixture(scope="session")
-def tsa(tmp_path_factory) -> LocalTsa:
-    if OPENSSL is None:
-        pytest.skip("openssl absent")
-    d = tmp_path_factory.mktemp("tsa")
-    ec = ["-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes"]
-    _run(
-        "req",
-        "-x509",
-        *ec,
-        "-keyout",
-        "ca.key",
-        "-out",
-        "ca.pem",
-        "-days",
-        "2",
-        "-subj",
-        "/CN=VERITAS Test Root CA",
-        "-addext",
-        "basicConstraints=critical,CA:TRUE",
-        "-addext",
-        "keyUsage=critical,keyCertSign,cRLSign",
-        cwd=d,
-    )
-    _run(
-        "req", *ec, "-keyout", "tsa.key", "-out", "tsa.csr", "-subj", "/CN=VERITAS Test TSA", cwd=d
-    )
-    (d / "ext.cnf").write_text(
-        "basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature\n"
-        "extendedKeyUsage=critical,timeStamping\n"
-    )
-    _run(
-        "x509",
-        "-req",
-        "-in",
-        "tsa.csr",
-        "-CA",
-        "ca.pem",
-        "-CAkey",
-        "ca.key",
-        "-CAcreateserial",
-        "-out",
-        "tsa.pem",
-        "-days",
-        "2",
-        "-extfile",
-        "ext.cnf",
-        cwd=d,
-    )
-    (d / "serial").write_text("01\n")
-    (d / "ts.cnf").write_text(
-        "[ tsa ]\ndefault_tsa = tsa_config\n[ tsa_config ]\n"
-        f"dir = {d}\nserial = $dir/serial\ncrypto_device = builtin\n"
-        # Seul le certificat de signature est joint (« certs » omis) : avec plusieurs
-        # certificats, OpenSSL ne les trie pas comme l'exige DER, et rfc3161-client,
-        # volontairement strict, refuse la réponse.
-        "signer_cert = $dir/tsa.pem\nsigner_key = $dir/tsa.key\n"
-        "signer_digest = sha256\ndefault_policy = 1.2.3.4.1\ndigests = sha256\n"
-        "accuracy = secs:1\nordering = no\ntsa_name = yes\n"
-        "ess_cert_id_chain = no\ness_cert_id_alg = sha256\n"
-    )
-    return LocalTsa(d)
+    return run_openssl(*args, cwd=cwd)
 
 
 def _provider(handler, timeout: float = 5.0) -> HttpTimestampProvider:
