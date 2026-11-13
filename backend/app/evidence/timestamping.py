@@ -31,11 +31,11 @@ from enum import StrEnum
 from cryptography import x509
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from veritas_verifier.custody_chain import format_timestamp
+from veritas_verifier.timestamp_verification import verify_timestamp_token
 
 from app.audit.models import AccessOutcome
 from app.audit.service import AuditAction, ClientInfo, record_access
-from app.crypto.custody_chain import format_timestamp
-from app.crypto.timestamp_verification import verify_timestamp_token
 from app.custody.service import CustodyEventType, append_event
 from app.evidence.models import Evidence, EvidenceFile, EvidenceStatus, HashRecord
 from app.storage import Storage

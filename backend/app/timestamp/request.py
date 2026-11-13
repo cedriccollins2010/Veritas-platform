@@ -26,8 +26,7 @@ from cryptography.x509.oid import ObjectIdentifier
 # rfc3161-client n'expose pas encore publiquement l'analyse d'une requête ; sa fonction
 # interne est utilisée en garde-fou. La version de la bibliothèque est figée.
 from rfc3161_client import _rust as rfc3161_internal
-
-from app.crypto.hash_service import normalize_digest
+from veritas_verifier.hash_service import normalize_digest
 
 SHA256_OID = ObjectIdentifier("2.16.840.1.101.3.4.2.1")
 # AlgorithmIdentifier { id-sha256, NULL }, tel qu'OpenSSL et rfc3161-client l'encodent.

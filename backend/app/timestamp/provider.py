@@ -14,8 +14,8 @@ from typing import Protocol
 
 import httpx
 from rfc3161_client import PKIStatus, decode_timestamp_response
+from veritas_verifier.hash_service import digests_match, normalize_digest
 
-from app.crypto.hash_service import digests_match, normalize_digest
 from app.timestamp.request import build_request, new_nonce
 
 REQUEST_MEDIA_TYPE = "application/timestamp-query"

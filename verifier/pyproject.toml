@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "veritas-verifier"
+version = "0.1.0"
+description = "VERITAS — vérification indépendante des dossiers de preuve numérique"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.12"
+# Bornes plutôt que versions figées : c'est une bibliothèque, installée aussi par des tiers.
+# Les bornes basses sont les versions testées ; le serveur fige les versions exactes dans
+# backend/requirements.txt.
+dependencies = [
+    # Certificats X.509 (chaîne de la TSA).
+    "cryptography>=50.0.2",
+    # Jetons RFC 3161 (>= 1.0.3 : CVE-2025-52556). Borne haute serrée : timestamp_verification
+    # relit la requête avec une fonction interne (_rust.parse_timestamp_request).
+    "rfc3161-client>=1.0.9,<1.1",
+    # Canonicalisation JSON RFC 8785.
+    "rfc8785>=0.1.4,<0.2",
+]
+
+[project.optional-dependencies]
+# Outils de développement, mêmes versions que backend/requirements-dev.txt.
+dev = ["pytest==9.2.0", "ruff==0.17.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]  # assert est normal dans les tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["veritas_verifier"]

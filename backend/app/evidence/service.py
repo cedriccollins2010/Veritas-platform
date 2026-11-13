@@ -1,7 +1,7 @@
 """Création et consultation des preuves.
 
 Ce module n'implémente aucun algorithme cryptographique : l'empreinte vient de
-app.crypto (calculée pendant la réception), la chaîne de possession de app.custody.
+veritas_verifier (calculée pendant la réception), la chaîne de possession de app.custody.
 
 Création d'une preuve, en deux transactions :
 1. La preuve est enregistrée à l'état PROCESSING et validée. Si la suite échoue, il en
@@ -18,10 +18,10 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from veritas_verifier.hash_service import ALGORITHM, ENGINE_VERSION, digests_match, sha256_stream
 
 from app.audit.models import AccessOutcome
 from app.audit.service import AuditAction, ClientInfo, record_access
-from app.crypto.hash_service import ALGORITHM, ENGINE_VERSION, digests_match, sha256_stream
 from app.custody.service import CustodyEventType, append_event
 from app.evidence.models import (
     Evidence,

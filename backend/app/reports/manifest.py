@@ -17,10 +17,11 @@ from dataclasses import dataclass
 from importlib.metadata import version
 from typing import Any
 
+from veritas_verifier import canonical, custody_chain
+from veritas_verifier import manifest as manifest_crypto
+from veritas_verifier.hash_service import ENCODING, ENGINE_VERSION
+
 from app import __version__
-from app.crypto import canonical, custody_chain
-from app.crypto import manifest as manifest_crypto
-from app.crypto.hash_service import ENCODING, ENGINE_VERSION
 from app.custody.models import CustodyEvent
 from app.evidence.models import EvidenceStatus, HashSource
 from app.evidence.service import EvidenceView

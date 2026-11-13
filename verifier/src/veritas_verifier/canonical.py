@@ -5,8 +5,8 @@ de nombreuses façons (ordre des clés, espaces, écriture des nombres, échappe
 JCS en définit une seule. Le serveur et le vérificateur autonome produisent donc les
 mêmes octets, donc la même empreinte.
 
-Bibliothèque : rfc8785 (Trail of Bits). Ce module ne dépend d'aucun autre module de
-VERITAS : il sera partagé avec le vérificateur.
+Bibliothèque : rfc8785 (Trail of Bits). Ce module fait partie du paquet
+veritas-verifier, partagé par le serveur et le vérificateur autonome.
 
 Règle supplémentaire de VERITAS : pas de nombres à virgule dans les données hachées.
 Leur représentation peut varier d'un système à l'autre (PostgreSQL JSONB, JavaScript) ;

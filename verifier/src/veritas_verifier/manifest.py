@@ -10,15 +10,15 @@ L'empreinte du manifeste détecte une modification accidentelle ou maladroite ; 
 protège pas seule contre un faussaire qui recalculerait tout. Cette garantie viendra de
 l'horodatage RFC 3161 du manifeste par une autorité externe (phase 3).
 
-Ce module ne dépend d'aucun autre module de VERITAS : le vérificateur autonome
-l'utilisera tel quel.
+Ce module ne dépend pas du serveur VERITAS : le serveur et le vérificateur autonome
+l'appellent tous deux.
 """
 
 import hashlib
 from typing import Any
 
-from app.crypto import canonical
-from app.crypto.hash_service import ALGORITHM, digests_match
+from veritas_verifier import canonical
+from veritas_verifier.hash_service import ALGORITHM, digests_match
 
 DIGEST_FIELD = "manifest_digest"
 

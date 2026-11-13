@@ -12,10 +12,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text
+from veritas_verifier.custody_chain import event_hash, event_payload
 
 from app.auth.cookies import CSRF_HEADER, csrf_cookie_name
 from app.core.config import get_settings
-from app.crypto.custody_chain import event_hash, event_payload
 from app.custody.models import CustodyEvent
 from app.evidence.models import Evidence, EvidenceFile, HashRecord
 from app.main import app

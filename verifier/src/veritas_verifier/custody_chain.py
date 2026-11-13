@@ -10,8 +10,8 @@
 Chaque empreinte dépend de toutes les précédentes : modifier, supprimer ou réordonner
 un événement change toutes les empreintes qui suivent, ce qui se voit.
 
-Ce module est la définition de référence du format. Il ne dépend d'aucun autre module
-de VERITAS ni de la base de données : le vérificateur autonome l'utilisera tel quel.
+Ce module est la définition de référence du format. Il ne dépend ni du serveur VERITAS
+ni d'une base de données : le serveur et le vérificateur autonome l'appellent tous deux.
 Toute modification des champs hachés exige un nouveau numéro de format.
 """
 
@@ -23,8 +23,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from app.crypto.canonical import NonCanonicalValueError, canonicalize
-from app.crypto.hash_service import normalize_digest
+from veritas_verifier.canonical import NonCanonicalValueError, canonicalize
+from veritas_verifier.hash_service import normalize_digest
 
 FORMAT = "veritas-custody-v1"
 GENESIS = bytes(32)  # « H(0) » : 32 octets nuls

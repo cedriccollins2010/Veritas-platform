@@ -6,6 +6,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Bibliothèque de vérification VERITAS, à côté de /app comme verifier/ à côté de backend/
+# dans le dépôt : requirements.txt la désigne par « ../verifier ». Le contexte « verifier »
+# est fourni par Docker Compose (additional_contexts) ; sans Compose :
+#   docker build --build-context verifier=./verifier ./backend
+COPY --from=verifier pyproject.toml README.md LICENSE NOTICE /verifier/
+COPY --from=verifier src /verifier/src
+
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 

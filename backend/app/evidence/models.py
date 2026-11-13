@@ -1,7 +1,7 @@
 """Tables des preuves, de leurs fichiers et des empreintes (migration 0001).
 
 Ce module décrit les données ; il n'implémente aucun algorithme cryptographique
-(le calcul d'empreinte est dans app/crypto).
+(le calcul d'empreinte est dans veritas_verifier).
 """
 
 import uuid

@@ -9,9 +9,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from veritas_verifier.custody_chain import verify_chain
 
 from app.auth.cookies import CSRF_HEADER, csrf_cookie_name
-from app.crypto.custody_chain import verify_chain
 from app.custody.service import CustodyEventType, append_event, list_events, to_chain_event
 from app.evidence.models import Evidence
 from app.main import app

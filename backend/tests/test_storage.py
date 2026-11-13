@@ -14,9 +14,9 @@ from pathlib import Path
 import boto3
 import pytest
 from moto import mock_aws
+from veritas_verifier.hash_service import sha256_stream
 
 from app.core.config import Settings
-from app.crypto.hash_service import sha256_stream
 from app.storage import (
     InvalidStorageKeyError,
     Storage,

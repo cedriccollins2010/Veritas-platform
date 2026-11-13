@@ -3,7 +3,7 @@ import io
 
 import pytest
 
-from app.crypto.hash_service import (
+from veritas_verifier.hash_service import (
     digests_match,
     normalize_digest,
     sha256_file,
