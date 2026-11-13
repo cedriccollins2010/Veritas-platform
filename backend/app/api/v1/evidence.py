@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -27,6 +27,7 @@ from app.evidence.upload import (
     clean_media_type,
     receive_upload,
 )
+from app.reports.manifest import EvidenceNotExportableError, build_manifest
 from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
@@ -183,4 +184,33 @@ def get_evidence_events(
         evidence_id=evidence_id,
         events=[CustodyEventOut.from_model(event) for event in events],
         chain=ChainVerificationOut.from_result(verification),
+    )
+
+
+@router.get(
+    "/{evidence_id}/manifest",
+    response_class=Response,
+    responses={200: {"content": {"application/json": {}}, "description": "Manifeste v1"}},
+)
+def get_evidence_manifest(
+    evidence_id: uuid.UUID, membership: CurrentOrganization, db: Db
+) -> Response:
+    """Manifeste JSON v1 du dossier de preuve (schéma : documentation/api/
+    manifest-v1.schema.json), publié sous sa forme canonique RFC 8785 : deux appels sur
+    le même dossier renvoient exactement les mêmes octets."""
+    view = service.get_for_organization(db, membership.organization.id, evidence_id)
+    if view is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    try:
+        manifest = build_manifest(view, custody_service.list_events(db, evidence_id))
+    except EvidenceNotExportableError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(error)) from None
+    return Response(
+        content=manifest.content,
+        media_type="application/json",
+        headers={
+            # L'empreinte du manifeste sert d'identifiant de version (cache HTTP).
+            "ETag": f'"{manifest.digest}"',
+            "X-Content-Type-Options": "nosniff",
+        },
     )
