@@ -42,9 +42,10 @@ class StorageKeyNotFoundError(StorageError, FileNotFoundError):
     """Aucun fichier pour cette clé."""
 
 
-def new_storage_key(prefix: str = "originals") -> str:
-    """Clé unique générée par le serveur : « originals/<uuid4> »."""
-    key = f"{prefix}/{uuid.uuid4()}"
+def new_storage_key(prefix: str = "originals", suffix: str = "") -> str:
+    """Clé unique générée par le serveur : « originals/<uuid4> », ou par exemple
+    « timestamps/<uuid4>.tsr » avec un suffixe."""
+    key = f"{prefix}/{uuid.uuid4()}{suffix}"
     validate_key(key)
     return key
 

@@ -8,6 +8,7 @@ requires-python = ">=3.12"
 testpaths = ["tests"]
 markers = [
     "integration: test qui nécessite une base PostgreSQL accessible (ignoré sinon)",
+    "tsa_live: appelle une vraie autorité d'horodatage (ignoré sans accès au réseau)",
 ]
 
 [tool.ruff]
