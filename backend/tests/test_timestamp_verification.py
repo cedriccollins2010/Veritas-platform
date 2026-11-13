@@ -146,28 +146,55 @@ def test_a_byte_change_never_alters_what_is_attested(tsa, stamped) -> None:
 # --- Comparaison avec openssl ts -verify ------------------------------------------------
 
 
-def _corpus(tsa, rogue_tsa, request, response):
-    yield "valide", response, request
-    yield "autre empreinte", tsa.reply(build_request(OTHER_DIGEST, nonce=424242)), request
-    yield "autre nonce", tsa.reply(build_request(DIGEST, nonce=5)), request
-    yield "autre TSA", rogue_tsa.reply(request), request
-    step = max(1, len(response) // 40)
-    for position in range(0, len(response), step):
+def test_verdicts_match_openssl_on_realistic_tokens(tsa, rogue_tsa, stamped) -> None:
+    """Jetons réalistes : verdicts strictement identiques à openssl ts -verify."""
+    request, response = stamped
+    corpus = {
+        "valide": response,
+        "autre empreinte": tsa.reply(build_request(OTHER_DIGEST, nonce=424242)),
+        "autre nonce": tsa.reply(build_request(DIGEST, nonce=5)),
+        "autre TSA": rogue_tsa.reply(request),
+    }
+    verdicts = {
+        label: (_verify(tsa, token, request).valid, tsa.openssl_verdict(token, request))
+        for label, token in corpus.items()
+    }
+    assert verdicts == {
+        "valide": (True, True),
+        "autre empreinte": (False, False),
+        "autre nonce": (False, False),
+        "autre TSA": (False, False),
+    }
+
+
+def _stricter_than_openssl_by_design(response: bytes, position: int) -> bool:
+    """Les deux seuls cas où nous refusons un jeton qu'OpenSSL accepte, hors signature :
+    - le statut de la réponse changé en « accordé avec modifications » (rfc3161-client
+      n'accepte que « accordé ») ;
+    - l'étiquette NULL des paramètres d'un identifiant d'algorithme remplacée par une
+      autre (rfc3161-client applique strictement DER, OpenSSL tolère)."""
+    status_value = response.index(b"\x30\x03\x02\x01\x00") + 4
+    is_null_tag = response[position : position + 2] == b"\x05\x00"
+    return position == status_value or is_null_tag
+
+
+def test_never_more_lenient_than_openssl(tsa, stamped) -> None:
+    """Chaque octet du jeton modifié tour à tour : nous n'acceptons jamais un jeton
+    qu'OpenSSL refuse ; et nous ne refusons un jeton qu'OpenSSL accepte que dans les
+    cas documentés (ADR-0009)."""
+    request, response = stamped
+    more_lenient, unexplained_stricter = [], []
+    for position in range(len(response)):
         altered = bytearray(response)
         altered[position] ^= 0x01
-        yield f"octet {position}", bytes(altered), request
-
-
-def test_verdicts_match_openssl(tsa, rogue_tsa, stamped) -> None:
-    """Pour chaque jeton du corpus, notre verdict est celui d'openssl ts -verify."""
-    request, response = stamped
-    disagreements = []
-    for label, token, query in _corpus(tsa, rogue_tsa, request, response):
-        ours = _verify(tsa, token, query).valid
-        theirs = tsa.openssl_verdict(token, query)
-        if ours != theirs:
-            disagreements.append((label, ours, theirs))
-    assert disagreements == []
+        ours = _verify(tsa, bytes(altered), request).valid
+        theirs = tsa.openssl_verdict(bytes(altered), request)
+        if ours and not theirs:
+            more_lenient.append(position)
+        elif theirs and not ours and not _stricter_than_openssl_by_design(response, position):
+            unexplained_stricter.append(position)
+    assert more_lenient == []
+    assert unexplained_stricter == []
 
 
 # --- Racines de confiance versionnées ----------------------------------------------------
