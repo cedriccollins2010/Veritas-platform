@@ -5,3 +5,5 @@ httpx==0.28.1
 ruff==0.17.4
 # Faux service S3 en mémoire, pour tester S3Storage sans serveur.
 moto[s3]==5.2.5
+# Validation du manifeste contre son schéma JSON (documentation/api/manifest-v1.schema.json).
+jsonschema==4.26.0

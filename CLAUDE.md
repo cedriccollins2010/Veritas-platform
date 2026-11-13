@@ -113,7 +113,7 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
 ## Où en est le projet
 
 - [x] **Sprint 1 — Socle technique** : FastAPI, Next.js, PostgreSQL, Docker Compose, Alembic (schéma complet), `/health` et `/api/v1/health/ready`, page d'état frontend, module SHA-256 testé, CI GitHub Actions.
-- [ ] **Phase 2 — Moteur de preuve** (prochaine) : dans l'ordre suggéré
+- [x] **Phase 2 — Moteur de preuve** : terminée (étapes ci-dessous)
   1. ~~Modèles ORM SQLAlchemy correspondant à la migration 0001.~~ Fait.
      Migration 0002 : rôle applicatif à privilèges minimaux (correction n° 5 du document de référence). Fait.
   2. ~~Authentification minimale~~ Fait (ADR-0003). Routes protégées : dépendances `CurrentUser` / `CurrentOrganization` (`app/auth/dependencies.py`). La garde CSRF s'applique à tout `/api/v1` ; une nouvelle exemption s'ajoute à `CSRF_EXEMPT_PATHS` avec une justification.
@@ -121,7 +121,7 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
   4. ~~`POST /api/v1/evidence`~~ Fait (ADR-0005) : réception en flux (`app/evidence/upload.py`), `GET /evidence` et `/evidence/{id}` filtrés sur l'organisation. Format de chaîne `veritas-custody-v1` défini dans `app/crypto/custody_chain.py` ; ajouter un événement : `app.custody.service.append_event`.
   5. ~~Mode empreinte seule~~ Fait (ADR-0006) : `POST /evidence/hash-only`. Toute réponse ou tout export qui affiche une empreinte lit `verified_by_server` ; ne jamais présenter une empreinte `CLIENT` comme vérifiée.
   6. ~~Chaîne de possession~~ Fait (ADR-0005) : `verify_chain`, `GET /evidence/{id}/events`, tests d'altération et de concurrence. Ne jamais changer les champs hachés sans nouveau numéro de format.
-  7. Manifeste JSON v1 et `GET /evidence/{id}/manifest`.
-- [ ] Phase 3 — Horodatage et ancrage · Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
+  7. ~~Manifeste JSON v1~~ Fait (ADR-0007) : `GET /evidence/{id}/manifest`, schéma `documentation/api/manifest-v1.schema.json`. Le manifeste ne contient rien de variable (pas de date de génération) ; toute évolution de structure exige une nouvelle `format_version`.
+- [ ] **Phase 3 — Horodatage et ancrage** (prochaine) · Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
 
 Critères d'acceptation du MVP (T01 à T13) : voir le document de référence, section « Plan de réalisation ».
