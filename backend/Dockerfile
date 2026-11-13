@@ -12,7 +12,8 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Le conteneur ne tourne pas en root.
-RUN useradd --create-home --uid 1000 veritas && chown -R veritas /app
+RUN useradd --create-home --uid 1000 veritas && chown -R veritas /app \
+    && mkdir -p /data/storage && chown veritas /data/storage && chmod 700 /data/storage
 USER veritas
 
 EXPOSE 8000

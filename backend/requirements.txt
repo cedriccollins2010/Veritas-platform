@@ -11,3 +11,5 @@ python-multipart==0.0.33
 cryptography==50.0.2
 # Hachage des mots de passe (Argon2id, RFC 9106). Voir app/auth/security.py.
 argon2-cffi==25.1.0
+# Stockage compatible S3 (SDK officiel AWS, fonctionne avec tout service compatible S3).
+boto3==1.43.121
