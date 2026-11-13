@@ -31,7 +31,7 @@ La spécification à jour est le **Document de référence unifié** : `document
 | Fichiers | Tout type, 500 Mo max (configurable) ; mode « empreinte seule » (`storage_mode = HASH_ONLY`, `hash_records.source = CLIENT`) |
 | Empreinte | SHA-256 en flux, `app/crypto/hash_service.py` |
 | Horodatage | RFC 3161, TSA externe derrière l'interface `TimestampProvider`. DigiCert (`http://timestamp.digicert.com`) en dev et pilote, FreeTSA pour les tests. Bibliothèque `rfc3161-client` **>= 1.0.3** (CVE-2025-52556 avant), envoi HTTP via `httpx`. Comparer aux verdicts de `openssl ts -verify` dans les tests |
-| Chaîne de possession | `H(n) = SHA-256(H(n-1) ‖ JCS(E(n)))`, canonicalisation **RFC 8785** (pas `json.dumps(sort_keys=True)`). `occurred_at` est haché, `created_at` ne l'est pas. Verrouiller la preuve (`SELECT ... FOR UPDATE`) avant d'insérer un événement |
+| Chaîne de possession | Format `veritas-custody-v1` (ADR-0005) : `H(n) = SHA-256(H(n-1) ‖ JCS(E(n)))`, 32 octets nuls pour le premier, canonicalisation **RFC 8785** (`rfc8785`, pas `json.dumps(sort_keys=True)`). `occurred_at` est haché, `created_at` ne l'est pas. Verrouiller la preuve (`SELECT ... FOR UPDATE`) avant d'insérer un événement. Vérification : `verify_chain` (pure, `app/crypto/custody_chain.py`) |
 | Ancrage | Tête de chaîne horodatée par la TSA à l'export (`timestamp_records.purpose = CHAIN_HEAD`) |
 | Vérification | Le vérificateur autonome (CLI `veritas verify`, phase 4) est la référence ; le serveur appelle la même bibliothèque. Un résultat par contrôle ; `VALID` seulement si tout est `PASS` ; `UNKNOWN` quand l'information manque. Jamais de PASS artificiel |
 | Erreurs d'accès | Preuve inexistante ou d'une autre organisation → **404** dans les deux cas |
@@ -120,7 +120,7 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
   3. ~~Stockage objet~~ Fait (ADR-0004) : `get_storage()` dans `app/storage/` ; clés `new_storage_key()` uniquement ; un fichier n'est jamais réécrit. Pas de serveur S3 dans Docker Compose (MinIO n'est plus distribué) : disque local en dev, S3 géré au pilote.
   4. ~~`POST /api/v1/evidence`~~ Fait (ADR-0005) : réception en flux (`app/evidence/upload.py`), `GET /evidence` et `/evidence/{id}` filtrés sur l'organisation. Format de chaîne `veritas-custody-v1` défini dans `app/crypto/custody_chain.py` ; ajouter un événement : `app.custody.service.append_event`.
   5. Mode empreinte seule.
-  6. Chaîne de possession : canonicalisation et calcul faits (ADR-0005) ; reste la vérification de la chaîne et les tests d'altération (modification, suppression, réordonnancement, rupture, insertions concurrentes).
+  6. ~~Chaîne de possession~~ Fait (ADR-0005) : `verify_chain`, `GET /evidence/{id}/events`, tests d'altération et de concurrence. Ne jamais changer les champs hachés sans nouveau numéro de format.
   7. Manifeste JSON v1 et `GET /evidence/{id}/manifest`.
 - [ ] Phase 3 — Horodatage et ancrage · Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
 

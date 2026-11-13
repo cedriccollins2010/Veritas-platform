@@ -9,6 +9,13 @@ from starlette.concurrency import run_in_threadpool
 
 from app.auth.dependencies import Client, CurrentOrganization, CurrentUser
 from app.core.config import get_settings
+from app.crypto.custody_chain import verify_chain
+from app.custody import service as custody_service
+from app.custody.schemas import (
+    ChainVerificationOut,
+    CustodyEventOut,
+    EvidenceEventsOut,
+)
 from app.database.session import get_db
 from app.evidence import service
 from app.evidence.schemas import EvidenceOut
@@ -117,3 +124,19 @@ def get_evidence(evidence_id: uuid.UUID, membership: CurrentOrganization, db: Db
     if view is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return EvidenceOut.from_view(view)
+
+
+@router.get("/{evidence_id}/events", response_model=EvidenceEventsOut)
+def get_evidence_events(
+    evidence_id: uuid.UUID, membership: CurrentOrganization, db: Db
+) -> EvidenceEventsOut:
+    """Historique (chaîne de possession) d'une preuve, avec la vérification de la chaîne."""
+    if service.get_for_organization(db, membership.organization.id, evidence_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    events = custody_service.list_events(db, evidence_id)
+    verification = verify_chain([custody_service.to_chain_event(e) for e in events])
+    return EvidenceEventsOut(
+        evidence_id=evidence_id,
+        events=[CustodyEventOut.from_model(event) for event in events],
+        chain=ChainVerificationOut.from_result(verification),
+    )

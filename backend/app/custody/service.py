@@ -58,7 +58,7 @@ def append_event(
         event_type=event_type.value,
         actor_id=str(actor_id) if actor_id else None,
         occurred_at=occurred_at,
-        data=data,
+        event_data=data,
     )
     event = CustodyEvent(
         id=event_id,
@@ -75,3 +75,30 @@ def append_event(
     db.add(event)
     db.flush()
     return event
+
+
+def list_events(db: Session, evidence_id: uuid.UUID) -> list[CustodyEvent]:
+    """Événements d'une preuve, dans l'ordre de la chaîne. L'appelant a déjà vérifié
+    que la preuve appartient à l'organisation de l'utilisateur."""
+    return list(
+        db.scalars(
+            select(CustodyEvent)
+            .where(CustodyEvent.evidence_id == evidence_id)
+            .order_by(CustodyEvent.sequence_number)
+        )
+    )
+
+
+def to_chain_event(event: CustodyEvent) -> custody_chain.ChainEvent:
+    """Ligne de la base → événement à vérifier (sans created_at, qui n'est pas haché)."""
+    return custody_chain.ChainEvent(
+        event_id=str(event.id),
+        evidence_id=str(event.evidence_id),
+        sequence_number=event.sequence_number,
+        event_type=event.event_type,
+        actor_id=str(event.actor_id) if event.actor_id else None,
+        occurred_at=event.occurred_at,
+        event_data=event.event_data,
+        previous_event_hash=event.previous_event_hash,
+        event_hash=event.event_hash,
+    )

@@ -164,7 +164,7 @@ def test_first_custody_event_is_recomputable(api, user, db_session) -> None:
         event_type=event.event_type,
         actor_id=str(event.actor_id),
         occurred_at=event.occurred_at,
-        data=event.event_data,
+        event_data=event.event_data,
     )
     assert event_hash(None, payload) == event.event_hash
 
