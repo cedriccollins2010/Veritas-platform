@@ -121,13 +121,13 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
   4. ~~`POST /api/v1/evidence`~~ Fait (ADR-0005) : réception en flux (`app/evidence/upload.py`), `GET /evidence` et `/evidence/{id}` filtrés sur l'organisation. Format de chaîne `veritas-custody-v1` défini dans `app/crypto/custody_chain.py` ; ajouter un événement : `app.custody.service.append_event`.
   5. ~~Mode empreinte seule~~ Fait (ADR-0006) : `POST /evidence/hash-only`. Toute réponse ou tout export qui affiche une empreinte lit `verified_by_server` ; ne jamais présenter une empreinte `CLIENT` comme vérifiée.
   6. ~~Chaîne de possession~~ Fait (ADR-0005) : `verify_chain`, `GET /evidence/{id}/events`, tests d'altération et de concurrence. Ne jamais changer les champs hachés sans nouveau numéro de format.
-  7. ~~Manifeste JSON v1~~ Fait (ADR-0007) : `GET /evidence/{id}/manifest`, schéma `documentation/api/manifest-v1.schema.json`. Le manifeste ne contient rien de variable (pas de date de génération) ; toute évolution de structure exige une nouvelle `format_version`.
-- [ ] **Phase 3 — Horodatage et ancrage** (en cours) : issues #23 à #27, dans l'ordre.
+  7. ~~Manifeste JSON v1~~ Fait (ADR-0007, puis 1.1 en phase 3) : `GET /evidence/{id}/manifest`, schémas dans `documentation/api/`. Le manifeste ne contient rien de variable (pas de date de génération) ; toute évolution de structure exige une nouvelle `format_version`.
+- [x] **Phase 3 — Horodatage et ancrage** : terminée (issues #23 à #27).
   1. ~~Client RFC 3161 (#23)~~ Fait (ADR-0008) : `app/timestamp/` ; requête encodée par VERITAS (`request.py`) et relue par `rfc3161-client` ; tests sur une TSA locale OpenSSL, aucun appel réseau sauf `tsa_live`.
   2. ~~Vérification complète d'un jeton (#24)~~ Fait (ADR-0009) : `verify_timestamp_token` (pure, `app/crypto/`), racines dans `app/timestamp/trust/` (ajout = PR relue, provenance documentée). Enregistrer l'empreinte du `.tsr` dans la chaîne de possession (malléabilité CMS).
   3. ~~Horodatage d'une preuve et reprise sur panne (#25)~~ Fait (ADR-0010) : `app/evidence/timestamping.py` ; tâche de fond après le dépôt, relance `POST /evidence/{id}/timestamp`. `CERTIFIED` uniquement avec un jeton `VALID` rattaché (`TIMESTAMP_ATTACHED`). Dans les tests, la TSA est « indisponible » par défaut.
   4. ~~Ancrage de la tête de chaîne (#26)~~ Fait (ADR-0011) : `POST /evidence/{id}/anchor` (`app/evidence/anchoring.py`), migration 0003 (`anchored_sequence_number`), `verify_anchor` (pure). Un ancrage est réutilisé si seul son `CHAIN_ANCHORED` le suit.
-  5. Manifeste v1.1 (#27).
-- [ ] Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
+  5. ~~Manifeste v1.1 (#27)~~ Fait (ADR-0012) : `timestamps` (jetons `VALID`, empreintes des `.tsr`/`.tsq` conservés) et `timestamp_status` explicite ; schéma `manifest-v1.1.schema.json`, le 1.0 reste publié.
+- [ ] **Phase 4 — Vérificateur autonome** (prochaine) · Phase 5 — MVP professionnel.
 
 Critères d'acceptation du MVP (T01 à T13) : voir le document de référence, section « Plan de réalisation ».

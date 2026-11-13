@@ -1,15 +1,20 @@
-"""Construction du manifeste JSON d'un dossier de preuve (format « veritas-manifest » 1.0).
+"""Construction du manifeste JSON d'un dossier de preuve (format « veritas-manifest » 1.1).
 
 Le manifeste décrit tout ce qu'un tiers doit vérifier : la preuve, ses fichiers et leurs
 empreintes (avec leur origine), la chaîne de possession complète et sa tête, et les
-versions des outils. Son schéma est publié dans documentation/api/manifest-v1.schema.json.
+versions des outils, et (depuis 1.1) les jetons d'horodatage vérifiés et l'ancrage de la
+tête de chaîne. Schéma : documentation/api/manifest-v1.1.schema.json (le schéma 1.0 reste
+publié tel quel : documentation/api/manifest-v1.schema.json).
 
 Règle : le manifeste est une fonction de l'état enregistré, et de lui seul. Il ne contient
 ni date de génération ni valeur aléatoire : deux exports du même dossier sont identiques
 octet pour octet. created_at des événements (non haché) n'y figure pas.
 """
 
+import hashlib
+from collections.abc import Sequence
 from dataclasses import dataclass
+from importlib.metadata import version
 from typing import Any
 
 from app import __version__
@@ -19,9 +24,11 @@ from app.crypto.hash_service import ENCODING, ENGINE_VERSION
 from app.custody.models import CustodyEvent
 from app.evidence.models import EvidenceStatus, HashSource
 from app.evidence.service import EvidenceView
+from app.storage import Storage
+from app.timestamp.models import TimestampPurpose, TimestampRecord, TimestampValidationStatus
 
 FORMAT = "veritas-manifest"
-FORMAT_VERSION = "1.0"
+FORMAT_VERSION = "1.1"
 
 # Une preuve dont le dépôt a échoué ou n'est pas terminé n'a rien à décrire.
 EXPORTABLE_STATUSES = frozenset(
@@ -107,7 +114,100 @@ def _custody_section(events: list[CustodyEvent]) -> dict[str, Any]:
     }
 
 
-def build_manifest(view: EvidenceView, events: list[CustodyEvent]) -> Manifest:
+@dataclass(frozen=True)
+class ManifestTimestamp:
+    """Un jeton VALID et les empreintes des fichiers conservés (.tsr et .tsq)."""
+
+    record: TimestampRecord
+    token_sha256: str
+    request_sha256: str
+
+
+def collect_valid_timestamps(
+    records: Sequence[TimestampRecord], storage: Storage
+) -> list[ManifestTimestamp]:
+    """Jetons vérifiés VALID, avec l'empreinte des fichiers réellement conservés.
+
+    Seuls les jetons VALID figurent au manifeste : ce sont ceux qu'un tiers peut
+    vérifier. Les tentatives en échec restent tracées dans la base et le journal.
+    """
+    collected = []
+    for record in records:
+        if record.validation_status != TimestampValidationStatus.VALID.value:
+            continue
+        with storage.open(record.token_storage_key) as token:
+            token_sha256 = hashlib.sha256(token.read()).hexdigest()
+        with storage.open(record.request_storage_key) as request:
+            request_sha256 = hashlib.sha256(request.read()).hexdigest()
+        collected.append(ManifestTimestamp(record, token_sha256, request_sha256))
+    return collected
+
+
+def _timestamp_entry(item: ManifestTimestamp) -> dict[str, Any]:
+    record = item.record
+    return {
+        "timestamp_record_id": str(record.id),
+        "purpose": record.purpose,
+        "hash_algorithm": record.hash_algorithm,
+        "message_imprint": record.message_imprint,
+        "anchored_sequence_number": record.anchored_sequence_number,
+        "tsa": {"name": record.tsa_name, "url": record.tsa_url},
+        "policy_oid": record.policy_oid,
+        "serial_number": record.serial_number,
+        "generation_time": _timestamp(record.generation_time),
+        "validation_status": record.validation_status,
+        # Chemins prévus dans l'archive du passeport de preuve (phase 4).
+        "token": {"path": f"timestamp/{record.id}.tsr", "sha256": item.token_sha256},
+        "request": {"path": f"timestamp/{record.id}.tsq", "sha256": item.request_sha256},
+    }
+
+
+def _sort_key(item: ManifestTimestamp):
+    record = item.record
+    return (
+        record.purpose != TimestampPurpose.FILE.value,  # FILE d'abord, puis les ancrages
+        record.anchored_sequence_number or 0,
+        record.generation_time,
+        str(record.id),
+    )
+
+
+def _timestamp_status(
+    evidence_status: EvidenceStatus,
+    timestamps: list[ManifestTimestamp],
+    events: list[CustodyEvent],
+) -> dict[str, Any]:
+    """État explicite de l'horodatage : un tiers voit d'emblée ce qui est garanti."""
+    file_valid = any(t.record.purpose == TimestampPurpose.FILE.value for t in timestamps)
+    if file_valid:
+        file_status = "VALID"
+    elif evidence_status is EvidenceStatus.TIMESTAMP_PENDING:
+        file_status = "PENDING"
+    else:
+        file_status = "NONE"
+    anchored = max(
+        (
+            t.record.anchored_sequence_number
+            for t in timestamps
+            if t.record.purpose == TimestampPurpose.CHAIN_HEAD.value
+        ),
+        default=None,
+    )
+    return {
+        "file": file_status,
+        "chain_head": "ANCHORED" if anchored is not None else "NONE",
+        "anchored_sequence_number": anchored,
+        # Événements postérieurs au dernier ancrage : couverts par la chaîne seulement,
+        # pas encore par un horodatage externe (dont l'événement CHAIN_ANCHORED lui-même).
+        "unanchored_events": len(events) - (anchored or 0),
+    }
+
+
+def build_manifest(
+    view: EvidenceView,
+    events: list[CustodyEvent],
+    timestamps: Sequence[ManifestTimestamp] = (),
+) -> Manifest:
     evidence = view.evidence
     if EvidenceStatus(evidence.status) not in EXPORTABLE_STATUSES:
         raise EvidenceNotExportableError(f"État {evidence.status} : aucun manifeste possible.")
@@ -125,12 +225,15 @@ def build_manifest(view: EvidenceView, events: list[CustodyEvent]) -> Manifest:
             },
             "files": _file_section(view),
             "custody": _custody_section(events),
-            # Jetons d'horodatage RFC 3161 : ajoutés en phase 3.
-            "timestamps": [],
+            "timestamps": [_timestamp_entry(t) for t in sorted(timestamps, key=_sort_key)],
+            "timestamp_status": _timestamp_status(
+                EvidenceStatus(evidence.status), list(timestamps), events
+            ),
             "tools": {
                 "veritas_server": __version__,
                 "hash_engine": ENGINE_VERSION,
                 "hash_encoding": ENCODING,
+                "rfc3161_client": version("rfc3161-client"),
             },
         }
     )

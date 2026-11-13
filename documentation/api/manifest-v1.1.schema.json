@@ -1,0 +1,575 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veritas.local/schemas/manifest-v1.1.schema.json",
+  "title": "Manifeste VERITAS, format 1.1",
+  "description": "Description autoportante d'un dossier de preuve, avec les jetons d'horodatage RFC 3161 vérifiés et l'ancrage de la tête de chaîne. Publié sous sa forme canonique RFC 8785. manifest_digest.value = SHA-256 de la forme canonique RFC 8785 du manifeste sans son champ manifest_digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "format_version",
+    "evidence",
+    "files",
+    "custody",
+    "timestamps",
+    "timestamp_status",
+    "tools",
+    "manifest_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "veritas-manifest"
+    },
+    "format_version": {
+      "const": "1.1"
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "organization_id",
+        "owner_id",
+        "title",
+        "status",
+        "created_at"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "organization_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "owner_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "status": {
+          "enum": [
+            "HASHED",
+            "TIMESTAMP_PENDING",
+            "CERTIFIED",
+            "ARCHIVED"
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "original_filename",
+          "media_type",
+          "size",
+          "storage_mode",
+          "hashes"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/uuid"
+          },
+          "original_filename": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "media_type": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 255
+          },
+          "size": {
+            "$ref": "#/$defs/safe_integer"
+          },
+          "storage_mode": {
+            "description": "STORED : l'original est conservé par VERITAS. HASH_ONLY : seule l'empreinte, déclarée par l'analyste, est connue.",
+            "enum": [
+              "STORED",
+              "HASH_ONLY"
+            ]
+          },
+          "hashes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "algorithm",
+                "encoding",
+                "digest",
+                "engine_version",
+                "source",
+                "verified_by_server",
+                "calculated_at"
+              ],
+              "properties": {
+                "algorithm": {
+                  "const": "SHA-256"
+                },
+                "encoding": {
+                  "const": "hex"
+                },
+                "digest": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "engine_version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "source": {
+                  "description": "SERVER : calculée par VERITAS sur le fichier reçu. CLIENT : déclarée par l'analyste (mode empreinte seule).",
+                  "enum": [
+                    "SERVER",
+                    "CLIENT"
+                  ]
+                },
+                "verified_by_server": {
+                  "description": "Vrai si et seulement si source vaut SERVER.",
+                  "type": "boolean"
+                },
+                "calculated_at": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "CLIENT"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "verified_by_server": {
+                        "const": false
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "SERVER"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "verified_by_server": {
+                        "const": true
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "custody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "canonicalization",
+        "hash_algorithm",
+        "genesis",
+        "event_count",
+        "head_hash",
+        "events"
+      ],
+      "properties": {
+        "format": {
+          "const": "veritas-custody-v1"
+        },
+        "canonicalization": {
+          "const": "JCS-RFC8785"
+        },
+        "hash_algorithm": {
+          "const": "SHA-256"
+        },
+        "genesis": {
+          "description": "H(0) : 32 octets nuls, en hexadécimal.",
+          "const": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "event_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "head_hash": {
+          "description": "Empreinte du dernier événement (tête de chaîne).",
+          "$ref": "#/$defs/sha256"
+        },
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "event_id",
+              "sequence_number",
+              "event_type",
+              "actor_id",
+              "occurred_at",
+              "event_data",
+              "previous_event_hash",
+              "event_hash"
+            ],
+            "properties": {
+              "event_id": {
+                "$ref": "#/$defs/uuid"
+              },
+              "sequence_number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "event_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "actor_id": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurred_at": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "event_data": {
+                "type": "object"
+              },
+              "previous_event_hash": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/sha256"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "event_hash": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamps": {
+      "description": "Jetons RFC 3161 vérifiés VALID (les tentatives en échec n'y figurent pas). FILE : horodatage de l'empreinte d'un fichier. CHAIN_HEAD : ancrage de la tête de chaîne.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "timestamp_record_id",
+          "purpose",
+          "hash_algorithm",
+          "message_imprint",
+          "anchored_sequence_number",
+          "tsa",
+          "policy_oid",
+          "serial_number",
+          "generation_time",
+          "validation_status",
+          "token",
+          "request"
+        ],
+        "properties": {
+          "timestamp_record_id": {
+            "$ref": "#/$defs/uuid"
+          },
+          "purpose": {
+            "enum": [
+              "FILE",
+              "CHAIN_HEAD"
+            ]
+          },
+          "hash_algorithm": {
+            "const": "SHA-256"
+          },
+          "message_imprint": {
+            "$ref": "#/$defs/sha256"
+          },
+          "anchored_sequence_number": {
+            "description": "CHAIN_HEAD : numéro de l'événement dont l'empreinte est horodatée. FILE : null.",
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tsa": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "url"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "policy_oid": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(\\.[0-9]+)+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serial_number": {
+            "type": "string",
+            "pattern": "^[0-9a-f]+$"
+          },
+          "generation_time": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "validation_status": {
+            "const": "VALID"
+          },
+          "token": {
+            "$ref": "#/$defs/stored_file"
+          },
+          "request": {
+            "$ref": "#/$defs/stored_file"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "purpose": {
+                  "const": "CHAIN_HEAD"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "anchored_sequence_number": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "purpose": {
+                  "const": "FILE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "anchored_sequence_number": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "veritas_server",
+        "hash_engine",
+        "hash_encoding",
+        "rfc3161_client"
+      ],
+      "properties": {
+        "veritas_server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hash_engine": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hash_encoding": {
+          "const": "hex"
+        },
+        "rfc3161_client": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "manifest_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "canonicalization",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "SHA-256"
+        },
+        "canonicalization": {
+          "const": "JCS-RFC8785"
+        },
+        "value": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "timestamp_status": {
+      "description": "État explicite de l'horodatage. Seul file = VALID signifie un jeton vérifié pour le fichier ; chain_head = ANCHORED garantit la chaîne jusqu'à anchored_sequence_number ; unanchored_events événements la suivent sans être encore ancrés.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "chain_head",
+        "anchored_sequence_number",
+        "unanchored_events"
+      ],
+      "properties": {
+        "file": {
+          "enum": [
+            "VALID",
+            "PENDING",
+            "NONE"
+          ]
+        },
+        "chain_head": {
+          "enum": [
+            "ANCHORED",
+            "NONE"
+          ]
+        },
+        "anchored_sequence_number": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unanchored_events": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "chain_head": {
+                "const": "ANCHORED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "anchored_sequence_number": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "chain_head": {
+                "const": "NONE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "anchored_sequence_number": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "UTC, RFC 3339, microsecondes, suffixe Z.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+    },
+    "safe_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "stored_file": {
+      "description": "Fichier conservé et embarqué dans le passeport : chemin prévu dans l'archive et empreinte SHA-256 du fichier.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^timestamp/[0-9a-f-]{36}\\.ts[qr]$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}
