@@ -5,8 +5,9 @@ from datetime import UTC, datetime
 from functools import lru_cache
 from io import BytesIO
 
+from veritas_verifier.timestamp_verification import CheckStatus, TimestampVerification
+
 from app.core.config import Settings, get_settings
-from app.crypto.timestamp_verification import CheckStatus, TimestampVerification
 from app.storage import Storage, new_storage_key
 from app.timestamp.models import TimestampRecord, TimestampValidationStatus
 from app.timestamp.provider import HttpTimestampProvider, TimestampExchange, TimestampProvider

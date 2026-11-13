@@ -22,9 +22,9 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
-        files: ^backend/
+        files: ^(backend|verifier)/
       - id: ruff-format
-        files: ^backend/
+        files: ^(backend|verifier)/
 
   # Bloque le commit si un mot de passe, une clé ou un jeton apparaît dans le diff.
   - repo: https://github.com/gitleaks/gitleaks

@@ -15,7 +15,7 @@ VERITAS transforme un fichier en **dossier de preuve numérique** qu'un tiers pe
 - Le travail est suivi par des **issues GitHub** (libellé `phase-2` pour l'étape en cours). Commence chaque session en lisant l'issue concernée (`gh issue view <n>`).
 - Une issue = une branche (`feature/<n>-court-nom`, ou `fix/`, `chore/`) = une pull request vers `main`, qui contient `Closes #<n>`. Pas de push direct sur `main`.
 - Remplis le modèle de pull request, en particulier « Pourquoi » et « Points de sécurité à relire » : la développeuse relit chaque PR avant de fusionner.
-- Deux workflows doivent réussir : `CI` (lint, migrations, tests, build) et `Security` (gitleaks, Semgrep). Un échec Semgrep se corrige dans le code ; une exception (`# nosemgrep`) ne s'ajoute qu'avec une justification écrite à côté.
+- Deux workflows doivent réussir : `CI` (lint, migrations, tests, build, bibliothèque `verifier` seule) et `Security` (gitleaks, Semgrep). Un échec Semgrep se corrige dans le code ; une exception (`# nosemgrep`) ne s'ajoute qu'avec une justification écrite à côté.
 - pre-commit tourne avant chaque commit (ruff, ESLint, gitleaks, fichiers volumineux). Ne jamais le contourner avec `--no-verify`.
 - Dependabot ouvre des PR de mise à jour : vérifier que la CI passe et lire le changelog avant de fusionner, surtout pour `cryptography`, `rfc3161-client`, FastAPI et Next.js.
 
@@ -29,9 +29,9 @@ La spécification à jour est le **Document de référence unifié** : `document
 | Authentification | Cookie de session `HttpOnly` + `Secure` + `SameSite=Lax`, sessions en base (seule l'empreinte SHA-256 du jeton, `sessions.token_hash`). Mots de passe Argon2id (`argon2-cffi`). CSRF : en-tête `X-CSRF-Token` = HMAC du jeton de session, vérifié sur tout `/api/v1` (ADR-0003) |
 | Organisations | `organization_id` obligatoire partout ; organisation personnelle créée à l'inscription ; toute requête filtre sur l'organisation |
 | Fichiers | Tout type, 500 Mo max (configurable) ; mode « empreinte seule » (`storage_mode = HASH_ONLY`, `hash_records.source = CLIENT`) |
-| Empreinte | SHA-256 en flux, `app/crypto/hash_service.py` |
+| Empreinte | SHA-256 en flux, `veritas_verifier/hash_service.py` |
 | Horodatage | RFC 3161, TSA externe derrière l'interface `TimestampProvider`. DigiCert (`http://timestamp.digicert.com`) en dev et pilote, FreeTSA pour les tests. Bibliothèque `rfc3161-client` **>= 1.0.3** (CVE-2025-52556 avant), envoi HTTP via `httpx`. Comparer aux verdicts de `openssl ts -verify` dans les tests |
-| Chaîne de possession | Format `veritas-custody-v1` (ADR-0005) : `H(n) = SHA-256(H(n-1) ‖ JCS(E(n)))`, 32 octets nuls pour le premier, canonicalisation **RFC 8785** (`rfc8785`, pas `json.dumps(sort_keys=True)`). `occurred_at` est haché, `created_at` ne l'est pas. Verrouiller la preuve (`SELECT ... FOR UPDATE`) avant d'insérer un événement. Vérification : `verify_chain` (pure, `app/crypto/custody_chain.py`) |
+| Chaîne de possession | Format `veritas-custody-v1` (ADR-0005) : `H(n) = SHA-256(H(n-1) ‖ JCS(E(n)))`, 32 octets nuls pour le premier, canonicalisation **RFC 8785** (`rfc8785`, pas `json.dumps(sort_keys=True)`). `occurred_at` est haché, `created_at` ne l'est pas. Verrouiller la preuve (`SELECT ... FOR UPDATE`) avant d'insérer un événement. Vérification : `verify_chain` (pure, `veritas_verifier/custody_chain.py`) |
 | Ancrage | Tête de chaîne horodatée par la TSA à l'export (`timestamp_records.purpose = CHAIN_HEAD`) |
 | Vérification | Le vérificateur autonome (CLI `veritas verify`, phase 4) est la référence ; le serveur appelle la même bibliothèque. Un résultat par contrôle ; `VALID` seulement si tout est `PASS` ; `UNKNOWN` quand l'information manque. Jamais de PASS artificiel |
 | Erreurs d'accès | Preuve inexistante ou d'une autre organisation → **404** dans les deux cas |
@@ -49,11 +49,15 @@ docker compose up --build       # API : http://localhost:8000/docs · Frontend :
 # Backend seul (depuis backend/)
 python -m venv .venv && source .venv/bin/activate   # Windows : .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
+pip install -e ../verifier       # bibliothèque de vérification, modifiable sans réinstaller
 alembic upgrade head            # MIGRATION_DATABASE_URL (propriétaire)
 bash ../infrastructure/docker/postgres/create-app-user.sh   # une fois : compte de l'API
 uvicorn app.main:app --reload   # DATABASE_URL (compte de l'API)
 pytest -q                       # les tests marqués integration sont ignorés si PostgreSQL est absent
 ruff check . && ruff format .
+
+# Bibliothèque de vérification seule (depuis verifier/), Apache 2.0
+pip install -e ".[dev]" && pytest -q && ruff check .
 
 # Frontend seul (depuis frontend/)
 npm install
@@ -69,17 +73,20 @@ backend/app/
   core/config.py       configuration (pydantic-settings, variables d'environnement)
   database/            moteur SQLAlchemy, get_db, Base
   api/v1/              routes HTTP (préfixe /api/v1) — aucune logique métier ici
-  auth/ organizations/ evidence/ storage/ crypto/ timestamp/
+  auth/ organizations/ evidence/ storage/ timestamp/
   custody/ verification/ reports/ audit/      un module = une responsabilité
 backend/migrations/    Alembic ; 0001 = schéma initial complet, 0002 = rôle applicatif, 0003 = numéro ancré
 backend/tests/
+verifier/            paquet veritas-verifier (Apache 2.0) : code cryptographique pur, partagé
+  src/veritas_verifier/   canonical, hash_service, custody_chain, manifest, timestamp_verification
+  tests/
 frontend/src/app/      App Router Next.js
 frontend/src/services/ appels à l'API
 frontend/src/components/
 documentation/         spécifications et sources
 ```
 
-Règles entre modules : les routes appellent des services ; `crypto` ne dépend d'aucun autre module (il sera partagé avec le vérificateur) ; `evidence` n'implémente aucun algorithme cryptographique ; `timestamp` ne gère aucun utilisateur.
+Règles entre modules : les routes appellent des services ; `veritas_verifier` ne dépend jamais du serveur ni de FastAPI, SQLAlchemy ou httpx (`verifier/tests/test_package.py` le vérifie, ADR-0013) ; tout contrôle que le vérificateur autonome doit refaire y est écrit, jamais dans `backend/` ; `evidence` n'implémente aucun algorithme cryptographique ; `timestamp` ne gère aucun utilisateur.
 
 ## Base de données
 
@@ -118,16 +125,18 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
      Migration 0002 : rôle applicatif à privilèges minimaux (correction n° 5 du document de référence). Fait.
   2. ~~Authentification minimale~~ Fait (ADR-0003). Routes protégées : dépendances `CurrentUser` / `CurrentOrganization` (`app/auth/dependencies.py`). La garde CSRF s'applique à tout `/api/v1` ; une nouvelle exemption s'ajoute à `CSRF_EXEMPT_PATHS` avec une justification.
   3. ~~Stockage objet~~ Fait (ADR-0004) : `get_storage()` dans `app/storage/` ; clés `new_storage_key()` uniquement ; un fichier n'est jamais réécrit. Pas de serveur S3 dans Docker Compose (MinIO n'est plus distribué) : disque local en dev, S3 géré au pilote.
-  4. ~~`POST /api/v1/evidence`~~ Fait (ADR-0005) : réception en flux (`app/evidence/upload.py`), `GET /evidence` et `/evidence/{id}` filtrés sur l'organisation. Format de chaîne `veritas-custody-v1` défini dans `app/crypto/custody_chain.py` ; ajouter un événement : `app.custody.service.append_event`.
+  4. ~~`POST /api/v1/evidence`~~ Fait (ADR-0005) : réception en flux (`app/evidence/upload.py`), `GET /evidence` et `/evidence/{id}` filtrés sur l'organisation. Format de chaîne `veritas-custody-v1` défini dans `veritas_verifier/custody_chain.py` ; ajouter un événement : `app.custody.service.append_event`.
   5. ~~Mode empreinte seule~~ Fait (ADR-0006) : `POST /evidence/hash-only`. Toute réponse ou tout export qui affiche une empreinte lit `verified_by_server` ; ne jamais présenter une empreinte `CLIENT` comme vérifiée.
   6. ~~Chaîne de possession~~ Fait (ADR-0005) : `verify_chain`, `GET /evidence/{id}/events`, tests d'altération et de concurrence. Ne jamais changer les champs hachés sans nouveau numéro de format.
   7. ~~Manifeste JSON v1~~ Fait (ADR-0007, puis 1.1 en phase 3) : `GET /evidence/{id}/manifest`, schémas dans `documentation/api/`. Le manifeste ne contient rien de variable (pas de date de génération) ; toute évolution de structure exige une nouvelle `format_version`.
 - [x] **Phase 3 — Horodatage et ancrage** : terminée (issues #23 à #27).
   1. ~~Client RFC 3161 (#23)~~ Fait (ADR-0008) : `app/timestamp/` ; requête encodée par VERITAS (`request.py`) et relue par `rfc3161-client` ; tests sur une TSA locale OpenSSL, aucun appel réseau sauf `tsa_live`.
-  2. ~~Vérification complète d'un jeton (#24)~~ Fait (ADR-0009) : `verify_timestamp_token` (pure, `app/crypto/`), racines dans `app/timestamp/trust/` (ajout = PR relue, provenance documentée). Enregistrer l'empreinte du `.tsr` dans la chaîne de possession (malléabilité CMS).
+  2. ~~Vérification complète d'un jeton (#24)~~ Fait (ADR-0009) : `verify_timestamp_token` (pure, `veritas_verifier`), racines dans `app/timestamp/trust/` (ajout = PR relue, provenance documentée). Enregistrer l'empreinte du `.tsr` dans la chaîne de possession (malléabilité CMS).
   3. ~~Horodatage d'une preuve et reprise sur panne (#25)~~ Fait (ADR-0010) : `app/evidence/timestamping.py` ; tâche de fond après le dépôt, relance `POST /evidence/{id}/timestamp`. `CERTIFIED` uniquement avec un jeton `VALID` rattaché (`TIMESTAMP_ATTACHED`). Dans les tests, la TSA est « indisponible » par défaut.
   4. ~~Ancrage de la tête de chaîne (#26)~~ Fait (ADR-0011) : `POST /evidence/{id}/anchor` (`app/evidence/anchoring.py`), migration 0003 (`anchored_sequence_number`), `verify_anchor` (pure). Un ancrage est réutilisé si seul son `CHAIN_ANCHORED` le suit.
   5. ~~Manifeste v1.1 (#27)~~ Fait (ADR-0012) : `timestamps` (jetons `VALID`, empreintes des `.tsr`/`.tsq` conservés) et `timestamp_status` explicite ; schéma `manifest-v1.1.schema.json`, le 1.0 reste publié.
-- [ ] **Phase 4 — Vérificateur autonome** (prochaine) · Phase 5 — MVP professionnel.
+- [ ] **Phase 4 — Vérificateur autonome** (en cours, issues #33 à #38)
+  1. ~~Paquet `veritas-verifier` (#33)~~ Fait (ADR-0013) : `verifier/`, Apache 2.0 ; `app/crypto/` n'existe plus, importer `veritas_verifier`. Docker : contexte supplémentaire `verifier` (Compose).
+- [ ] Phase 5 — MVP professionnel.
 
 Critères d'acceptation du MVP (T01 à T13) : voir le document de référence, section « Plan de réalisation ».

@@ -1,6 +1,5 @@
 """Tests du manifeste JSON v1 (issue #8)."""
 
-import hashlib
 import json
 import uuid
 from datetime import UTC, datetime
@@ -10,11 +9,11 @@ import jsonschema
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from veritas_verifier import canonical
+from veritas_verifier import manifest as manifest_crypto
+from veritas_verifier.custody_chain import ChainEvent, verify_chain
 
 from app.auth.cookies import CSRF_HEADER, csrf_cookie_name
-from app.crypto import canonical
-from app.crypto import manifest as manifest_crypto
-from app.crypto.custody_chain import ChainEvent, verify_chain
 from app.custody.service import CustodyEventType, append_event
 from app.main import app
 from app.storage import get_storage
@@ -35,36 +34,7 @@ def test_schemas_are_valid_json_schemas() -> None:
     assert SCHEMA["properties"]["format_version"] == {"const": "1.1"}
 
 
-# --- Empreinte du manifeste (sans base de données) ------------------------------------
-
-
-def _sample() -> dict:
-    return manifest_crypto.seal({"format": "veritas-manifest", "evidence": {"title": "Disque"}})
-
-
-def test_seal_and_check() -> None:
-    sealed = _sample()
-    body = {k: v for k, v in sealed.items() if k != "manifest_digest"}
-    expected = hashlib.sha256(canonical.canonicalize(body)).hexdigest()
-    assert sealed["manifest_digest"]["value"] == expected
-    assert manifest_crypto.digest_is_valid(sealed)
-
-
-@pytest.mark.parametrize(
-    "tamper",
-    [
-        lambda m: m["evidence"].update(title="Disquf"),
-        lambda m: m.update(format="veritas-manifesu"),
-        lambda m: m["manifest_digest"].update(value="0" * 64),
-        lambda m: m["manifest_digest"].update(algorithm="MD5"),
-        lambda m: m.pop("manifest_digest"),
-        lambda m: m.update(extra=None),
-    ],
-)
-def test_tampering_invalidates_digest(tamper) -> None:
-    sealed = _sample()
-    tamper(sealed)
-    assert not manifest_crypto.digest_is_valid(sealed)
+# Les tests de l'empreinte seule (sans base) sont dans verifier/tests/test_manifest_digest.py.
 
 
 # --- Manifeste produit par l'API -------------------------------------------------------

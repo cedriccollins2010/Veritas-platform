@@ -15,11 +15,11 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
+from veritas_verifier.custody_chain import verify_chain
+from veritas_verifier.hash_service import normalize_digest
 
 from app.auth.dependencies import Client, CurrentOrganization, CurrentUser
 from app.core.config import get_settings
-from app.crypto.custody_chain import verify_chain
-from app.crypto.hash_service import normalize_digest
 from app.custody import service as custody_service
 from app.custody.schemas import (
     ChainVerificationOut,

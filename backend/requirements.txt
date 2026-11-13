@@ -19,3 +19,6 @@ rfc8785==0.1.4
 rfc3161-client==1.0.9
 # Client HTTP pour joindre l'autorité d'horodatage.
 httpx==0.28.1
+# Bibliothèque de vérification VERITAS (dossier verifier/ du dépôt, Apache 2.0) : empreintes,
+# chaîne de possession, manifeste, jetons RFC 3161. Chemin relatif au dossier backend/.
+../verifier

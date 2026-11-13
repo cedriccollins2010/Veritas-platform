@@ -9,12 +9,12 @@ from pathlib import Path
 import jsonschema
 import pytest
 from fastapi.testclient import TestClient
+from veritas_verifier import manifest as manifest_crypto
+from veritas_verifier.custody_chain import ChainEvent, verify_anchor, verify_chain
+from veritas_verifier.timestamp_verification import verify_timestamp_token
 
 from app.auth.cookies import CSRF_HEADER, csrf_cookie_name
 from app.core.config import get_settings
-from app.crypto import manifest as manifest_crypto
-from app.crypto.custody_chain import ChainEvent, verify_anchor, verify_chain
-from app.crypto.timestamp_verification import verify_timestamp_token
 from app.main import app
 from app.storage import get_storage
 from app.storage.local import LocalStorage

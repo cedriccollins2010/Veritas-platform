@@ -1,7 +1,7 @@
 """Ajout d'événements à la chaîne de possession d'une preuve.
 
 La chaîne n'est jamais modifiée : on ajoute un événement à la fin. Le calcul de
-l'empreinte est délégué à app.crypto.custody_chain (format de référence).
+l'empreinte est délégué à veritas_verifier.custody_chain (format de référence).
 """
 
 import uuid
@@ -11,8 +11,8 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from veritas_verifier import canonical, custody_chain
 
-from app.crypto import canonical, custody_chain
 from app.custody.models import CustodyEvent
 from app.evidence.models import Evidence
 

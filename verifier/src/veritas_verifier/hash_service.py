@@ -3,8 +3,8 @@
 Le calcul se fait en flux, par blocs de 1 Mo : un fichier de plusieurs gigaoctets
 n'est jamais chargé entièrement en mémoire.
 
-Ce module ne dépend d'aucun autre module de VERITAS. Il sera partagé avec le
-vérificateur autonome, qui doit produire exactement les mêmes empreintes.
+Ce module ne dépend pas du serveur VERITAS : le serveur et le vérificateur
+autonome l'appellent tous deux, et produisent donc exactement les mêmes empreintes.
 """
 
 import hashlib

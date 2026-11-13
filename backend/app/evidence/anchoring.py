@@ -24,12 +24,12 @@ from enum import StrEnum
 from cryptography import x509
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from veritas_verifier.custody_chain import format_timestamp
+from veritas_verifier.hash_service import ALGORITHM
+from veritas_verifier.timestamp_verification import verify_timestamp_token
 
 from app.audit.models import AccessOutcome
 from app.audit.service import AuditAction, ClientInfo, record_access
-from app.crypto.custody_chain import format_timestamp
-from app.crypto.hash_service import ALGORITHM
-from app.crypto.timestamp_verification import verify_timestamp_token
 from app.custody.models import CustodyEvent
 from app.custody.service import CustodyEventType, append_event, list_events
 from app.evidence.models import Evidence, EvidenceStatus

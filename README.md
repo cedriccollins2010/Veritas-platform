@@ -42,6 +42,7 @@ docker compose up --build
 python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell : .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
+pip install -e ../verifier         # bibliothèque de vérification, modifiable sans réinstaller
 alembic upgrade head               # compte propriétaire : MIGRATION_DATABASE_URL dans .env
 # Une fois : compte de l'API (variables PG* = compte propriétaire, APP_DB_PASSWORD = .env)
 bash ../infrastructure/docker/postgres/create-app-user.sh
@@ -50,6 +51,8 @@ pytest -q
 ```
 
 Deux comptes PostgreSQL : le propriétaire des tables ne sert qu'aux migrations, l'API se connecte avec un compte aux droits minimaux. Voir `documentation/architecture/ADR-0002-roles-postgresql.md`.
+
+**Bibliothèque de vérification** (`verifier/`, Apache 2.0), testée seule : voir `verifier/README.md`.
 
 **Frontend** (Node.js 22), depuis `frontend/` :
 
@@ -73,6 +76,7 @@ Chaque changement part d'une issue, se fait dans une branche et arrive dans `mai
 
 ```text
 backend/          API FastAPI (monolithe modulaire), migrations Alembic, tests
+verifier/         Bibliothèque de vérification veritas-verifier (Apache 2.0), partagée avec le serveur
 frontend/         Interface Next.js / React / TypeScript
 documentation/    Spécifications, architecture, sécurité, documents sources
 infrastructure/   Scripts et configuration Docker supplémentaires

@@ -11,8 +11,8 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 import rfc8785
 
-from app.crypto.canonical import NonCanonicalValueError, canonicalize
-from app.crypto.custody_chain import (
+from veritas_verifier.canonical import NonCanonicalValueError, canonicalize
+from veritas_verifier.custody_chain import (
     GENESIS,
     ChainEvent,
     event_hash,

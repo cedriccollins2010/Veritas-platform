@@ -26,8 +26,7 @@ from python_multipart.exceptions import MultipartParseError
 from python_multipart.multipart import MultipartParser, parse_options_header
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-
-from app.crypto.hash_service import IncrementalSha256
+from veritas_verifier.hash_service import IncrementalSha256
 
 FILE_FIELD = "file"
 TITLE_FIELD = "title"

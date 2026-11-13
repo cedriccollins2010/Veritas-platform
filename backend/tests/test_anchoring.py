@@ -9,16 +9,16 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
-
-from app.auth.cookies import CSRF_HEADER, csrf_cookie_name
-from app.crypto.custody_chain import (
+from veritas_verifier.custody_chain import (
     ChainEvent,
     event_hash,
     event_payload,
     verify_anchor,
     verify_chain,
 )
-from app.crypto.timestamp_verification import verify_timestamp_token
+from veritas_verifier.timestamp_verification import verify_timestamp_token
+
+from app.auth.cookies import CSRF_HEADER, csrf_cookie_name
 from app.custody.service import CustodyEventType, append_event, list_events, to_chain_event
 from app.main import app
 from app.storage import get_storage

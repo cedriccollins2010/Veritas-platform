@@ -5,13 +5,13 @@ import hashlib
 import pytest
 from cryptography.hazmat.primitives import hashes
 from rfc3161_client import decode_timestamp_response
-
-from app.crypto.timestamp_verification import (
+from veritas_verifier.timestamp_verification import (
     MANDATORY,
     Check,
     CheckStatus,
     verify_timestamp_token,
 )
+
 from app.timestamp.request import build_request
 from app.timestamp.roots import load_trust_roots
 from tests.local_tsa import run_openssl

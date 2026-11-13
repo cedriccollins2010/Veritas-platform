@@ -2,7 +2,8 @@
 
 Fonction pure : ni base de données, ni réseau, ni horloge système. Elle reçoit la
 réponse et la requête conservées, l'empreinte attendue et les racines de confiance, et
-rend un résultat par contrôle. Le vérificateur autonome la reprendra telle quelle.
+rend un résultat par contrôle. Le serveur et le vérificateur autonome l'appellent
+tous deux.
 
 Contrôles obligatoires (le jeton n'est VALID que si tous sont PASS) :
 - RESPONSE_READABLE : la réponse se décode (rfc3161-client, analyse DER stricte) ;
@@ -32,7 +33,7 @@ from cryptography import x509
 from rfc3161_client import PKIStatus, VerifierBuilder, decode_timestamp_response
 from rfc3161_client import _rust as rfc3161_internal
 
-from app.crypto.hash_service import normalize_digest
+from veritas_verifier.hash_service import normalize_digest
 
 SHA256_OID = x509.ObjectIdentifier("2.16.840.1.101.3.4.2.1")
 

@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel
+from veritas_verifier.custody_chain import ChainVerification
 
-from app.crypto.custody_chain import ChainVerification
 from app.custody.models import CustodyEvent
 
 

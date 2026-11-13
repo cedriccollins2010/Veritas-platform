@@ -26,7 +26,11 @@ services:
 
   # Applique les migrations avec le compte propriétaire, puis s'arrête.
   migrate:
-    build: ./backend
+    build: &backend-build
+      context: ./backend
+      # Bibliothèque de vérification (dossier verifier/), copiée dans l'image par le Dockerfile.
+      additional_contexts:
+        verifier: ./verifier
     container_name: veritas-migrate
     command: ["alembic", "upgrade", "head"]
     environment:
@@ -37,7 +41,7 @@ services:
     restart: "no"
 
   backend:
-    build: ./backend
+    build: *backend-build
     container_name: veritas-backend
     environment:
       APP_ENV: ${APP_ENV:-development}
