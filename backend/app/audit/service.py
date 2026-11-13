@@ -23,6 +23,7 @@ class AuditAction(StrEnum):
     LOGIN = "auth.login"
     LOGOUT = "auth.logout"
     EVIDENCE_CREATE = "evidence.create"
+    EVIDENCE_TIMESTAMP = "evidence.timestamp"
 
 
 @dataclass(frozen=True)

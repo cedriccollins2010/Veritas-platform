@@ -23,6 +23,8 @@ class CustodyEventType(StrEnum):
     # Mode « empreinte seule » : l'analyste a déclaré l'empreinte d'un fichier resté
     # sous sa garde. Le serveur ne l'a ni reçu ni haché.
     HASH_DECLARED = "HASH_DECLARED"
+    # Un jeton d'horodatage RFC 3161 vérifié VALID a été rattaché à la preuve.
+    TIMESTAMP_ATTACHED = "TIMESTAMP_ATTACHED"
 
 
 def append_event(

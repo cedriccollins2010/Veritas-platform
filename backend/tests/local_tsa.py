@@ -156,3 +156,18 @@ def create_local_tsa(directory: Path, name: str = "VERITAS Test") -> LocalTsa:
         "ess_cert_id_chain = no\ness_cert_id_alg = sha256\n"
     )
     return LocalTsa(d)
+
+
+def provider_for(tsa: "LocalTsa", name: str = "TSA de test"):
+    """Fournisseur HTTP branché sur la TSA locale (aucun réseau)."""
+    import httpx
+
+    from app.timestamp.provider import RESPONSE_MEDIA_TYPE, HttpTimestampProvider
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, headers={"Content-Type": RESPONSE_MEDIA_TYPE}, content=tsa.reply(request.content)
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    return HttpTimestampProvider(name, "https://tsa.test/tsr", timeout_seconds=5, client=client)

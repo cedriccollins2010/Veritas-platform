@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     tsa_provider: Literal["digicert", "freetsa"] = "digicert"
     # Délai maximal d'un appel à la TSA, en secondes : au-delà, l'horodatage est reporté.
     tsa_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
+    # Horodater automatiquement chaque preuve après son dépôt (tâche de fond).
+    timestamp_on_deposit: bool = True
 
     # Durée de vie d'une session de connexion, en heures. Au-delà, il faut se reconnecter.
     session_lifetime_hours: int = Field(default=12, ge=1, le=720)

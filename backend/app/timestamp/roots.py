@@ -19,3 +19,8 @@ def load_trust_roots() -> tuple[x509.Certificate, ...]:
     for path in sorted(TRUST_DIR.glob("*.pem")):
         roots.extend(x509.load_pem_x509_certificates(path.read_bytes()))
     return tuple(roots)
+
+
+def get_trust_roots() -> tuple[x509.Certificate, ...]:
+    """Dépendance FastAPI (remplacée dans les tests par la racine de la TSA de test)."""
+    return load_trust_roots()

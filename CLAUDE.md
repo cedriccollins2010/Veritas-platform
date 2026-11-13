@@ -125,7 +125,8 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
 - [ ] **Phase 3 — Horodatage et ancrage** (en cours) : issues #23 à #27, dans l'ordre.
   1. ~~Client RFC 3161 (#23)~~ Fait (ADR-0008) : `app/timestamp/` ; requête encodée par VERITAS (`request.py`) et relue par `rfc3161-client` ; tests sur une TSA locale OpenSSL, aucun appel réseau sauf `tsa_live`.
   2. ~~Vérification complète d'un jeton (#24)~~ Fait (ADR-0009) : `verify_timestamp_token` (pure, `app/crypto/`), racines dans `app/timestamp/trust/` (ajout = PR relue, provenance documentée). Enregistrer l'empreinte du `.tsr` dans la chaîne de possession (malléabilité CMS).
-  3. Horodatage d'une preuve et reprise sur panne (#25) · 4. Ancrage de la tête de chaîne (#26) · 5. Manifeste v1.1 (#27).
+  3. ~~Horodatage d'une preuve et reprise sur panne (#25)~~ Fait (ADR-0010) : `app/evidence/timestamping.py` ; tâche de fond après le dépôt, relance `POST /evidence/{id}/timestamp`. `CERTIFIED` uniquement avec un jeton `VALID` rattaché (`TIMESTAMP_ATTACHED`). Dans les tests, la TSA est « indisponible » par défaut.
+  4. Ancrage de la tête de chaîne (#26) · 5. Manifeste v1.1 (#27).
 - [ ] Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
 
 Critères d'acceptation du MVP (T01 à T13) : voir le document de référence, section « Plan de réalisation ».
