@@ -78,7 +78,9 @@ backend/app/
 backend/migrations/    Alembic ; 0001 = schéma initial complet, 0002 = rôle applicatif, 0003 = numéro ancré
 backend/tests/
 verifier/            paquet veritas-verifier (Apache 2.0) : code cryptographique pur, partagé
-  src/veritas_verifier/   canonical, hash_service, custody_chain, manifest, timestamp_verification
+  SPECIFICATION.md        règle publique du passeport veritas-passport-v1
+  src/veritas_verifier/   canonical, hash_service, custody_chain, manifest, timestamp_verification, passport, schemas/
+  examples/passport-v1/   passeport d'exemple synthétique et sa vérification à la main
   tests/
 frontend/src/app/      App Router Next.js
 frontend/src/services/ appels à l'API
@@ -128,7 +130,7 @@ Règles entre modules : les routes appellent des services ; `veritas_verifier` n
   4. ~~`POST /api/v1/evidence`~~ Fait (ADR-0005) : réception en flux (`app/evidence/upload.py`), `GET /evidence` et `/evidence/{id}` filtrés sur l'organisation. Format de chaîne `veritas-custody-v1` défini dans `veritas_verifier/custody_chain.py` ; ajouter un événement : `app.custody.service.append_event`.
   5. ~~Mode empreinte seule~~ Fait (ADR-0006) : `POST /evidence/hash-only`. Toute réponse ou tout export qui affiche une empreinte lit `verified_by_server` ; ne jamais présenter une empreinte `CLIENT` comme vérifiée.
   6. ~~Chaîne de possession~~ Fait (ADR-0005) : `verify_chain`, `GET /evidence/{id}/events`, tests d'altération et de concurrence. Ne jamais changer les champs hachés sans nouveau numéro de format.
-  7. ~~Manifeste JSON v1~~ Fait (ADR-0007, puis 1.1 en phase 3) : `GET /evidence/{id}/manifest`, schémas dans `documentation/api/`. Le manifeste ne contient rien de variable (pas de date de génération) ; toute évolution de structure exige une nouvelle `format_version`.
+  7. ~~Manifeste JSON v1~~ Fait (ADR-0007, puis 1.1 en phase 3) : `GET /evidence/{id}/manifest`, schémas dans `verifier/src/veritas_verifier/schemas/` (depuis #34). Le manifeste ne contient rien de variable (pas de date de génération) ; toute évolution de structure exige une nouvelle `format_version`.
 - [x] **Phase 3 — Horodatage et ancrage** : terminée (issues #23 à #27).
   1. ~~Client RFC 3161 (#23)~~ Fait (ADR-0008) : `app/timestamp/` ; requête encodée par VERITAS (`request.py`) et relue par `rfc3161-client` ; tests sur une TSA locale OpenSSL, aucun appel réseau sauf `tsa_live`.
   2. ~~Vérification complète d'un jeton (#24)~~ Fait (ADR-0009) : `verify_timestamp_token` (pure, `veritas_verifier`), racines dans `app/timestamp/trust/` (ajout = PR relue, provenance documentée). Enregistrer l'empreinte du `.tsr` dans la chaîne de possession (malléabilité CMS).
@@ -137,6 +139,7 @@ Règles entre modules : les routes appellent des services ; `veritas_verifier` n
   5. ~~Manifeste v1.1 (#27)~~ Fait (ADR-0012) : `timestamps` (jetons `VALID`, empreintes des `.tsr`/`.tsq` conservés) et `timestamp_status` explicite ; schéma `manifest-v1.1.schema.json`, le 1.0 reste publié.
 - [ ] **Phase 4 — Vérificateur autonome** (en cours, issues #33 à #38)
   1. ~~Paquet `veritas-verifier` (#33)~~ Fait (ADR-0013) : `verifier/`, Apache 2.0 ; `app/crypto/` n'existe plus, importer `veritas_verifier`. Docker : contexte supplémentaire `verifier` (Compose).
+  2. ~~Spécification du passeport (#34)~~ Fait (ADR-0014) : `verifier/SPECIFICATION.md` est **normative** (contenu exact de l'archive, six contrôles, verdict). Archive : `veritas_verifier.passport` (`expected_entries`, `write_passport`, déterministe). Le manifeste doit concorder avec la chaîne ; titre, organisation et statut sont déclaratifs. Exemple : `verifier/examples/passport-v1/` (régénérer = mettre à jour son README). Toute évolution du format = nouvelle version du passeport.
 - [ ] Phase 5 — MVP professionnel.
 
 Critères d'acceptation du MVP (T01 à T13) : voir le document de référence, section « Plan de réalisation ».

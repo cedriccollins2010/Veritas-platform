@@ -2,7 +2,6 @@
 
 import copy
 import hashlib
-import json
 import uuid
 from pathlib import Path
 
@@ -25,11 +24,7 @@ from tests.local_tsa import provider_for
 
 pytestmark = pytest.mark.integration
 
-SCHEMA = json.loads(
-    (Path(__file__).resolve().parents[2] / "documentation/api/manifest-v1.1.schema.json").read_text(
-        encoding="utf-8"
-    )
-)
+SCHEMA = manifest_crypto.load_schema("1.1")
 PASSWORD = "correct horse battery staple"
 
 

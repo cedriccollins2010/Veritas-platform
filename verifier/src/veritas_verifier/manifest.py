@@ -15,12 +15,22 @@ l'appellent tous deux.
 """
 
 import hashlib
+import json
+from importlib import resources
 from typing import Any
 
 from veritas_verifier import canonical
 from veritas_verifier.hash_service import ALGORITHM, digests_match
 
 DIGEST_FIELD = "manifest_digest"
+# Schéma JSON (draft 2020-12) de chaque version publiée, livré avec le paquet.
+SCHEMA_FILES = {"1.0": "manifest-v1.schema.json", "1.1": "manifest-v1.1.schema.json"}
+
+
+def load_schema(format_version: str) -> dict[str, Any]:
+    """Schéma JSON publié pour une version du manifeste (KeyError si inconnue)."""
+    schema = resources.files("veritas_verifier") / "schemas" / SCHEMA_FILES[format_version]
+    return json.loads(schema.read_text(encoding="utf-8"))
 
 
 def compute_digest(manifest: dict[str, Any]) -> str:
