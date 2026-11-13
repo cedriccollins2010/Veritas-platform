@@ -20,14 +20,19 @@ from app.main import app
 from app.storage import get_storage
 from app.storage.local import LocalStorage
 
-SCHEMA_PATH = Path(__file__).resolve().parents[2] / "documentation/api/manifest-v1.schema.json"
-SCHEMA = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+SCHEMA_DIR = Path(__file__).resolve().parents[2] / "documentation/api"
+SCHEMA_V1_0 = json.loads((SCHEMA_DIR / "manifest-v1.schema.json").read_text(encoding="utf-8"))
+SCHEMA = json.loads((SCHEMA_DIR / "manifest-v1.1.schema.json").read_text(encoding="utf-8"))
 PASSWORD = "correct horse battery staple"
 DIGEST = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 
-def test_schema_is_a_valid_json_schema() -> None:
+def test_schemas_are_valid_json_schemas() -> None:
+    """Le schéma 1.0 reste publié tel quel ; le manifeste produit suit le 1.1."""
+    jsonschema.Draft202012Validator.check_schema(SCHEMA_V1_0)
     jsonschema.Draft202012Validator.check_schema(SCHEMA)
+    assert SCHEMA_V1_0["properties"]["format_version"] == {"const": "1.0"}
+    assert SCHEMA["properties"]["format_version"] == {"const": "1.1"}
 
 
 # --- Empreinte du manifeste (sans base de données) ------------------------------------

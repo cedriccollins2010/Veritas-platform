@@ -221,3 +221,14 @@ def latest_file_timestamps(
     )
     # Ordre chronologique : la dernière tentative de chaque preuve écrase les précédentes.
     return {row.evidence_id: row for row in rows}
+
+
+def timestamp_records(db: Session, evidence_id: uuid.UUID) -> list[TimestampRecord]:
+    """Toutes les tentatives d'horodatage d'une preuve (fichier et ancrages)."""
+    return list(
+        db.scalars(
+            select(TimestampRecord)
+            .where(TimestampRecord.evidence_id == evidence_id)
+            .order_by(TimestampRecord.created_at, TimestampRecord.id)
+        )
+    )

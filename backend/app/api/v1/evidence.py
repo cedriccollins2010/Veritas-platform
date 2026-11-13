@@ -36,7 +36,11 @@ from app.evidence.upload import (
     clean_media_type,
     receive_upload,
 )
-from app.reports.manifest import EvidenceNotExportableError, build_manifest
+from app.reports.manifest import (
+    EvidenceNotExportableError,
+    build_manifest,
+    collect_valid_timestamps,
+)
 from app.storage import Storage, get_storage
 from app.timestamp.roots import get_trust_roots
 from app.timestamp.service import get_timestamp_provider
@@ -314,16 +318,20 @@ def get_evidence_events(
     responses={200: {"content": {"application/json": {}}, "description": "Manifeste v1"}},
 )
 def get_evidence_manifest(
-    evidence_id: uuid.UUID, membership: CurrentOrganization, db: Db
+    evidence_id: uuid.UUID, membership: CurrentOrganization, db: Db, storage: StorageDep
 ) -> Response:
-    """Manifeste JSON v1 du dossier de preuve (schéma : documentation/api/
-    manifest-v1.schema.json), publié sous sa forme canonique RFC 8785 : deux appels sur
+    """Manifeste JSON 1.1 du dossier de preuve (schéma : documentation/api/
+    manifest-v1.1.schema.json), publié sous sa forme canonique RFC 8785 : deux appels sur
     le même dossier renvoient exactement les mêmes octets."""
     view = service.get_for_organization(db, membership.organization.id, evidence_id)
     if view is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     try:
-        manifest = build_manifest(view, custody_service.list_events(db, evidence_id))
+        manifest = build_manifest(
+            view,
+            custody_service.list_events(db, evidence_id),
+            collect_valid_timestamps(timestamping.timestamp_records(db, evidence_id), storage),
+        )
     except EvidenceNotExportableError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(error)) from None
     return Response(
