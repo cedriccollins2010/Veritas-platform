@@ -122,6 +122,9 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
   5. ~~Mode empreinte seule~~ Fait (ADR-0006) : `POST /evidence/hash-only`. Toute réponse ou tout export qui affiche une empreinte lit `verified_by_server` ; ne jamais présenter une empreinte `CLIENT` comme vérifiée.
   6. ~~Chaîne de possession~~ Fait (ADR-0005) : `verify_chain`, `GET /evidence/{id}/events`, tests d'altération et de concurrence. Ne jamais changer les champs hachés sans nouveau numéro de format.
   7. ~~Manifeste JSON v1~~ Fait (ADR-0007) : `GET /evidence/{id}/manifest`, schéma `documentation/api/manifest-v1.schema.json`. Le manifeste ne contient rien de variable (pas de date de génération) ; toute évolution de structure exige une nouvelle `format_version`.
-- [ ] **Phase 3 — Horodatage et ancrage** (prochaine) · Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
+- [ ] **Phase 3 — Horodatage et ancrage** (en cours) : issues #23 à #27, dans l'ordre.
+  1. ~~Client RFC 3161 (#23)~~ Fait (ADR-0008) : `app/timestamp/` ; requête encodée par VERITAS (`request.py`) et relue par `rfc3161-client` ; tests sur une TSA locale OpenSSL, aucun appel réseau sauf `tsa_live`.
+  2. Vérification complète d'un jeton (#24) · 3. Horodatage d'une preuve et reprise sur panne (#25) · 4. Ancrage de la tête de chaîne (#26) · 5. Manifeste v1.1 (#27).
+- [ ] Phase 4 — Vérificateur autonome · Phase 5 — MVP professionnel.
 
 Critères d'acceptation du MVP (T01 à T13) : voir le document de référence, section « Plan de réalisation ».
