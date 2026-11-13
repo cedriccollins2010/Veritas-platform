@@ -1,11 +1,14 @@
 """Fournisseur configuré et conservation des échanges avec la TSA."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import lru_cache
 from io import BytesIO
 
 from app.core.config import Settings, get_settings
+from app.crypto.timestamp_verification import CheckStatus, TimestampVerification
 from app.storage import Storage, new_storage_key
+from app.timestamp.models import TimestampRecord, TimestampValidationStatus
 from app.timestamp.provider import HttpTimestampProvider, TimestampExchange, TimestampProvider
 
 # Adresses publiques des TSA prévues par le document de référence.
@@ -42,3 +45,27 @@ def store_exchange(storage: Storage, exchange: TimestampExchange) -> StoredExcha
     storage.save_stream(request_key, BytesIO(exchange.request))
     storage.save_stream(response_key, BytesIO(exchange.response))
     return StoredExchange(request_key=request_key, response_key=response_key)
+
+
+def apply_verification(record: TimestampRecord, verification: TimestampVerification) -> None:
+    """Reporte le résultat de la vérification sur la ligne timestamp_records.
+
+    VALID seulement si tous les contrôles obligatoires sont PASS ; sinon INVALID, avec la
+    liste des contrôles en échec. La base refuse d'ailleurs VALID sans jeton conservé ni
+    heure de génération (contrainte CHECK de la migration 0001).
+    """
+    record.validation_status = (
+        TimestampValidationStatus.VALID.value
+        if verification.valid
+        else TimestampValidationStatus.INVALID.value
+    )
+    record.generation_time = verification.generation_time
+    record.serial_number = verification.serial_number
+    record.policy_oid = verification.policy_oid
+    failures = [
+        f"{result.check.value} : {result.detail or 'échec'}"
+        for result in verification.checks
+        if result.status is CheckStatus.FAIL
+    ]
+    record.error_detail = "\n".join(failures) or None
+    record.validated_at = datetime.now(UTC)
