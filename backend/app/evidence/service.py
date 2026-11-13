@@ -14,6 +14,7 @@ Création d'une preuve, en deux transactions :
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -122,6 +123,7 @@ def create_from_upload(
                 "hash_algorithm": ALGORITHM,
                 "digest": upload.sha256,
                 "storage_mode": StorageMode.STORED.value,
+                "hash_source": HashSource.SERVER.value,
             },
         )
         evidence.status = EvidenceStatus.HASHED.value
@@ -155,6 +157,93 @@ def create_from_upload(
             logger.exception("Impossible de marquer la preuve %s comme FAILED", evidence_id)
         raise EvidenceCreationError(evidence_id) from error
 
+    db.refresh(evidence)
+    return EvidenceView(evidence=evidence, file=evidence_file, hash_record=hash_record)
+
+
+@dataclass(frozen=True)
+class DeclaredHash:
+    """Empreinte déclarée par l'analyste, déjà validée et normalisée par l'appelant."""
+
+    original_filename: str
+    media_type: str
+    size: int
+    sha256: str
+    title: str | None
+    hash_tool: str
+
+
+def create_hash_only(
+    db: Session,
+    declared: DeclaredHash,
+    *,
+    user_id: uuid.UUID,
+    organization_id: uuid.UUID,
+    client: ClientInfo,
+) -> EvidenceView:
+    """Mode « empreinte seule » : enregistre l'empreinte d'un fichier qui ne quitte pas
+    la garde de l'analyste. Rien n'est stocké ni recalculé par le serveur.
+
+    Une seule transaction (pas de fichier, donc pas d'étape qui puisse échouer à moitié).
+    L'origine de l'empreinte est enregistrée partout où elle compte : storage_mode =
+    HASH_ONLY, hash_records.source = CLIENT, et dans l'événement de possession.
+    """
+    evidence = Evidence(
+        organization_id=organization_id,
+        owner_id=user_id,
+        title=declared.title or declared.original_filename,
+        status=EvidenceStatus.HASHED.value,
+    )
+    db.add(evidence)
+    db.flush()
+    evidence_file = EvidenceFile(
+        evidence_id=evidence.id,
+        original_filename=declared.original_filename,
+        storage_mode=StorageMode.HASH_ONLY.value,
+        storage_key=None,
+        media_type=declared.media_type,
+        file_size=declared.size,
+    )
+    db.add(evidence_file)
+    db.flush()
+    hash_record = HashRecord(
+        file_id=evidence_file.id,
+        algorithm=ALGORITHM,
+        digest=declared.sha256,
+        engine_version=declared.hash_tool,
+        source=HashSource.CLIENT.value,
+    )
+    db.add(hash_record)
+    db.flush()
+    append_event(
+        db,
+        evidence_id=evidence.id,
+        event_type=CustodyEventType.HASH_DECLARED,
+        actor_id=user_id,
+        occurred_at=datetime.now(UTC),
+        data={
+            "file_id": str(evidence_file.id),
+            "original_filename": declared.original_filename,
+            "media_type": declared.media_type,
+            "size": declared.size,
+            "hash_algorithm": ALGORITHM,
+            "digest": declared.sha256,
+            "storage_mode": StorageMode.HASH_ONLY.value,
+            "hash_source": HashSource.CLIENT.value,
+            "hash_tool": declared.hash_tool,
+        },
+    )
+    record_access(
+        db,
+        action=AuditAction.EVIDENCE_CREATE,
+        outcome=AccessOutcome.SUCCESS,
+        client=client,
+        user_id=user_id,
+        organization_id=organization_id,
+        resource_type="evidence",
+        resource_id=evidence.id,
+    )
+    db.commit()
     db.refresh(evidence)
     return EvidenceView(evidence=evidence, file=evidence_file, hash_record=hash_record)
 

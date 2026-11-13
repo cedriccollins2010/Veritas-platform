@@ -20,6 +20,9 @@ from app.evidence.models import Evidence
 class CustodyEventType(StrEnum):
     # Le fichier a été reçu, haché par le serveur et stocké.
     FILE_RECEIVED = "FILE_RECEIVED"
+    # Mode « empreinte seule » : l'analyste a déclaré l'empreinte d'un fichier resté
+    # sous sa garde. Le serveur ne l'a ni reçu ni haché.
+    HASH_DECLARED = "HASH_DECLARED"
 
 
 def append_event(

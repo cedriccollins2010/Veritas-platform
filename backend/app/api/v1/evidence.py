@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from app.auth.dependencies import Client, CurrentOrganization, CurrentUser
 from app.core.config import get_settings
 from app.crypto.custody_chain import verify_chain
+from app.crypto.hash_service import normalize_digest
 from app.custody import service as custody_service
 from app.custody.schemas import (
     ChainVerificationOut,
@@ -18,8 +19,14 @@ from app.custody.schemas import (
 )
 from app.database.session import get_db
 from app.evidence import service
-from app.evidence.schemas import EvidenceOut
-from app.evidence.upload import InvalidUploadError, UploadTooLargeError, receive_upload
+from app.evidence.schemas import EvidenceOut, HashOnlyRequest
+from app.evidence.upload import (
+    InvalidUploadError,
+    UploadTooLargeError,
+    clean_filename,
+    clean_media_type,
+    receive_upload,
+)
 from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
@@ -102,6 +109,43 @@ async def create_evidence(
         ) from None
     finally:
         upload.discard()
+    return EvidenceOut.from_view(view)
+
+
+@router.post(
+    "/hash-only",
+    status_code=status.HTTP_201_CREATED,
+    response_model=EvidenceOut,
+)
+def create_hash_only_evidence(
+    body: HashOnlyRequest,
+    user: CurrentUser,
+    membership: CurrentOrganization,
+    db: Db,
+    client: Client,
+) -> EvidenceOut:
+    """Mode « empreinte seule » : enregistre l'empreinte SHA-256 d'un fichier qui reste
+    sous la garde de l'analyste (image disque, capture réseau). Le fichier n'est pas
+    envoyé. La réponse indique verified_by_server = false : VERITAS atteste avoir reçu
+    cette empreinte à cette date, pas l'avoir calculée."""
+    try:
+        digest = normalize_digest(body.sha256)
+    except ValueError as error:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(error)) from None
+    view = service.create_hash_only(
+        db,
+        service.DeclaredHash(
+            original_filename=clean_filename(body.original_filename.encode("utf-8")),
+            media_type=clean_media_type(body.media_type),
+            size=body.size,
+            sha256=digest,
+            title=body.title,
+            hash_tool=body.hash_tool or "non précisé",
+        ),
+        user_id=user.id,
+        organization_id=membership.organization.id,
+        client=client,
+    )
     return EvidenceOut.from_view(view)
 
 
