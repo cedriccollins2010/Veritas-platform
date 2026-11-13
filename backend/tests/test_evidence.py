@@ -1,6 +1,7 @@
 """Tests d'intégration du dépôt de preuves (issue #5 : T01, T02, T10, T11)."""
 
 import hashlib
+import io
 import re
 import shutil
 import subprocess
@@ -332,3 +333,97 @@ def test_chunked_multipart_upload(api, user) -> None:
     assert response.status_code == 201, response.text
     assert response.json()["file"]["size"] == size
     assert response.json()["hash"]["digest"] == expected.hexdigest()
+
+
+# --- Défauts trouvés en revue de code -----------------------------------------------
+
+
+class _CorruptingStorage(LocalStorage):
+    """Stocke des octets différents, de même taille (disque défaillant, par exemple)."""
+
+    def save_stream(self, key, stream):
+        data = stream.read()
+        return super().save_stream(key, io.BytesIO(bytes(b ^ 0xFF for b in data)))
+
+
+def test_stored_copy_is_verified_against_digest(api, tmp_path, upload_dir, db_session, caplog):
+    app.dependency_overrides[get_storage] = lambda: _CorruptingStorage(tmp_path / "corrupt")
+    try:
+        _login(api)
+        response = _upload(api, b"contenu original")
+    finally:
+        app.dependency_overrides.pop(get_storage, None)
+
+    assert response.status_code == 500
+    evidence_id = re.search(r"[0-9a-f-]{36}", response.json()["detail"]).group()
+    assert api.get(f"{EVIDENCE}/{evidence_id}").json()["status"] == "FAILED"
+    # La cause et la clé du fichier resté sans référence sont dans le journal du serveur.
+    assert evidence_id in caplog.text
+    assert "originals/" in caplog.text
+    assert "diffère" in caplog.text
+
+
+def test_truncated_upload_through_the_route(api, user, storage, db_session) -> None:
+    boundary = "coupe"
+    before = _count(db_session, Evidence)
+    response = api.post(
+        EVIDENCE,
+        content=(
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="file"; filename="a.bin"\r\n\r\n'
+            "debut sans fin"
+        ).encode(),
+        headers={**_csrf(api), "Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    assert response.status_code == 400
+    assert _count(db_session, Evidence) == before
+    assert _stored_files(storage) == []
+
+
+def test_malformed_multipart_through_the_route(api, user) -> None:
+    response = api.post(
+        EVIDENCE,
+        content=b"n'importe quoi",
+        headers={**_csrf(api), "Content-Type": "multipart/form-data; boundary=xyz"},
+    )
+    assert response.status_code == 400
+
+
+def test_title_with_nul_is_a_client_error(api, user) -> None:
+    assert _upload(api, b"x", title="abc\x00def").status_code == 400
+
+
+def test_database_is_not_held_during_reception(api, user, db_session, monkeypatch) -> None:
+    """Pendant la réception du fichier, aucune transaction ne reste ouverte."""
+    from app.api.v1 import evidence as evidence_routes
+
+    real_receive = evidence_routes.receive_upload
+    seen = []
+
+    async def spying_receive(*args, **kwargs):
+        seen.append(db_session.in_transaction())
+        return await real_receive(*args, **kwargs)
+
+    monkeypatch.setattr(evidence_routes, "receive_upload", spying_receive)
+    assert _upload(api, b"x").status_code == 201
+    assert seen == [False]
+
+
+def test_failure_while_marking_failed_still_answers_cleanly(
+    api, tmp_path, upload_dir, monkeypatch, caplog
+) -> None:
+    from app.evidence import service as evidence_service
+
+    def broken_mark_failed(*args, **kwargs):
+        raise RuntimeError("base injoignable")
+
+    monkeypatch.setattr(evidence_service, "_mark_failed", broken_mark_failed)
+    app.dependency_overrides[get_storage] = lambda: _BrokenStorage(tmp_path / "broken")
+    try:
+        _login(api)
+        response = _upload(api, b"x")
+    finally:
+        app.dependency_overrides.pop(get_storage, None)
+    assert response.status_code == 500
+    assert "FAILED" in response.json()["detail"]
+    assert "Impossible de marquer" in caplog.text

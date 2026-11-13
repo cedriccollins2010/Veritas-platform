@@ -182,3 +182,48 @@ def test_clean_filename(raw: bytes, expected: str) -> None:
 )
 def test_clean_media_type(raw: str | None, expected: str) -> None:
     assert clean_media_type(raw) == expected
+
+
+# --- Défauts trouvés en revue de code -----------------------------------------------
+
+
+def _raw_request(chunks: list[bytes]) -> Request:
+    return _request(iter(chunks))
+
+
+def test_truncated_body_is_refused(tmp_path: Path) -> None:
+    """Un corps coupé avant la frontière finale n'est PAS un fichier complet : sinon on
+    enregistrerait comme preuve l'empreinte d'un fichier partiel."""
+    head = (
+        f'--{BOUNDARY}\r\nContent-Disposition: form-data; name="file"; filename="a.bin"\r\n\r\n'
+    ).encode()
+    with pytest.raises(InvalidUploadError):
+        asyncio.run(
+            receive_upload(
+                _raw_request([head, b"DEBUT DU FICHIER SANS FIN"]),
+                max_file_bytes=1024,
+                temp_dir=tmp_path,
+            )
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_malformed_multipart_is_a_client_error(tmp_path: Path) -> None:
+    with pytest.raises(InvalidUploadError) as error:
+        asyncio.run(
+            receive_upload(
+                _raw_request([b"ceci ne commence pas par la frontiere\r\n"]),
+                max_file_bytes=1024,
+                temp_dir=tmp_path,
+            )
+        )
+    assert error.value.status_code == 400
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("title", ["abc\x00def", "ligne\nnouvelle", "tab\tulation"])
+def test_title_with_control_characters_is_refused(tmp_path: Path, title: str) -> None:
+    with pytest.raises(InvalidUploadError):
+        asyncio.run(
+            receive_upload(_request(_body(3, title=title)), max_file_bytes=1024, temp_dir=tmp_path)
+        )

@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from python_multipart.exceptions import MultipartParseError
 from python_multipart.multipart import MultipartParser, parse_options_header
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -110,6 +111,8 @@ class _Receiver:
     header_value: bytearray = field(default_factory=bytearray)
     headers: dict[str, bytes] = field(default_factory=dict)
     file_seen: bool = False
+    file_complete: bool = False
+    finished: bool = False
     filename: str = ""
     media_type: str = DEFAULT_MEDIA_TYPE
     title: bytearray | None = None
@@ -164,7 +167,13 @@ class _Receiver:
                 raise InvalidUploadError("Titre trop long.")
 
     def on_part_end(self) -> None:
+        if self.current == FILE_FIELD:
+            self.file_complete = True
         self.current = None
+
+    def on_end(self) -> None:
+        # Appelé seulement quand la frontière finale « --boundary-- » a été lue.
+        self.finished = True
 
     def callbacks(self) -> dict:
         return {
@@ -175,6 +184,7 @@ class _Receiver:
             "on_headers_finished": self.on_headers_finished,
             "on_part_data": self.on_part_data,
             "on_part_end": self.on_part_end,
+            "on_end": self.on_end,
         }
 
     def decoded_title(self) -> str | None:
@@ -186,6 +196,10 @@ class _Receiver:
             raise InvalidUploadError("Titre : encodage UTF-8 attendu.") from error
         if len(title) > TITLE_MAX_LENGTH:
             raise InvalidUploadError("Titre trop long.")
+        if any(unicodedata.category(c)[0] == "C" for c in title):
+            # Caractères de contrôle (NUL, saut de ligne...) : refusés plutôt que retirés
+            # en silence, le titre étant saisi par l'analyste.
+            raise InvalidUploadError("Titre : caractères de contrôle interdits.")
         return title or None
 
 
@@ -226,17 +240,29 @@ async def receive_upload(
                 received += len(chunk)
                 if received > max_body_bytes:
                     raise UploadTooLargeError
-                parser.write(chunk)
+                try:
+                    parser.write(chunk)
+                except MultipartParseError as error:
+                    raise InvalidUploadError("Formulaire multipart mal formé.") from error
                 if len(receiver.pending) >= FLUSH_THRESHOLD:
                     # Hachage et écriture dans un fil séparé : la boucle asynchrone
                     # reste libre pour les autres requêtes pendant un gros dépôt.
                     await run_in_threadpool(_flush, receiver, output)
-            parser.finalize()
+            try:
+                parser.finalize()
+            except MultipartParseError as error:
+                raise InvalidUploadError("Formulaire multipart mal formé.") from error
             await run_in_threadpool(_flush, receiver, output)
+            # Pas de fsync : ce fichier est temporaire. C'est le stockage qui garantit
+            # que l'original est bien écrit sur le disque.
             await run_in_threadpool(output.flush)
-            await run_in_threadpool(os.fsync, output.fileno())
         if not receiver.file_seen:
             raise InvalidUploadError(f"Champ « {FILE_FIELD} » manquant.", status_code=422)
+        if not (receiver.file_complete and receiver.finished):
+            # La requête s'est terminée avant la fin du formulaire (connexion coupée,
+            # envoi tronqué). La finalisation de python-multipart ne le signale pas :
+            # sans ce contrôle, un fichier partiel serait enregistré comme preuve.
+            raise InvalidUploadError("Envoi incomplet : la fin du formulaire n'a pas été reçue.")
         return ReceivedUpload(
             path=path,
             size=receiver.size,

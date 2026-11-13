@@ -11,6 +11,7 @@ Création d'une preuve, en deux transactions :
    soit tout est enregistré, soit rien.
 """
 
+import logging
 import uuid
 from dataclasses import dataclass
 
@@ -19,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.audit.models import AccessOutcome
 from app.audit.service import AuditAction, ClientInfo, record_access
-from app.crypto.hash_service import ALGORITHM, ENGINE_VERSION
+from app.crypto.hash_service import ALGORITHM, ENGINE_VERSION, digests_match, sha256_stream
 from app.custody.service import CustodyEventType, append_event
 from app.evidence.models import (
     Evidence,
@@ -31,6 +32,8 @@ from app.evidence.models import (
 )
 from app.evidence.upload import ReceivedUpload
 from app.storage import Storage, new_storage_key
+
+logger = logging.getLogger(__name__)
 
 
 class EvidenceCreationError(Exception):
@@ -67,13 +70,24 @@ def create_from_upload(
     )
     db.add(evidence)
     db.commit()
+    evidence_id = evidence.id
+    storage_key: str | None = None
+    stored = False
 
     try:
         storage_key = new_storage_key()
         with upload.path.open("rb") as stream:
             stored_size = storage.save_stream(storage_key, stream)
+        stored = True
         if stored_size != upload.size:
             raise OSError(f"Taille stockée {stored_size} ≠ taille reçue {upload.size}")
+        # Vérification après copie, comme un outil d'acquisition forensique : on relit
+        # l'original dans le stockage et on recalcule son empreinte. L'état HASHED
+        # garantit ainsi que le fichier conservé est exactement celui qui a été haché.
+        with storage.open(storage_key) as stored_stream:
+            stored_digest = sha256_stream(stored_stream)
+        if not digests_match(upload.sha256, stored_digest):
+            raise OSError("L'empreinte du fichier stocké diffère de celle de la réception.")
 
         evidence_file = EvidenceFile(
             evidence_id=evidence.id,
@@ -125,8 +139,21 @@ def create_from_upload(
         db.commit()
     except Exception as error:
         db.rollback()
-        _mark_failed(db, evidence.id, user_id, organization_id, client)
-        raise EvidenceCreationError(evidence.id) from error
+        # La cause est journalisée côté serveur ; le client ne reçoit qu'un message
+        # générique. Si le fichier a déjà été stocké, sa clé est notée : il n'est
+        # rattaché à aucune ligne (un fichier stocké n'est jamais supprimé).
+        logger.exception(
+            "Échec du dépôt de la preuve %s (fichier stocké sans référence : %s)",
+            evidence_id,
+            storage_key if stored else "aucun",
+        )
+        try:
+            _mark_failed(db, evidence_id, user_id, organization_id, client)
+        except Exception:
+            # Par exemple, base de données injoignable : la preuve reste PROCESSING.
+            db.rollback()
+            logger.exception("Impossible de marquer la preuve %s comme FAILED", evidence_id)
+        raise EvidenceCreationError(evidence_id) from error
 
     db.refresh(evidence)
     return EvidenceView(evidence=evidence, file=evidence_file, hash_record=hash_record)

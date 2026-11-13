@@ -58,6 +58,12 @@ async def create_evidence(
 
     L'authentification et le jeton CSRF sont vérifiés avant de lire le moindre octet."""
     settings = get_settings()
+    user_id, organization_id = user.id, membership.organization.id
+    # Les vérifications d'accès ont ouvert une transaction de lecture. On la termine
+    # avant de recevoir le fichier : sinon une connexion à la base resterait occupée
+    # pendant tout l'envoi (plusieurs minutes pour 500 Mo sur une liaison lente), et
+    # quelques dépôts simultanés suffiraient à épuiser le pool de connexions.
+    db.commit()
     try:
         upload = await receive_upload(
             request,
@@ -78,8 +84,8 @@ async def create_evidence(
             db,
             storage,
             upload,
-            user_id=user.id,
-            organization_id=membership.organization.id,
+            user_id=user_id,
+            organization_id=organization_id,
             client=client,
         )
     except service.EvidenceCreationError as error:

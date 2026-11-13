@@ -12,12 +12,14 @@ Date : 2026-11-13 · Statut : accepté · Issue : #5 (et fondation de l'issue #7
 
 1. **Lecture en flux avec l'analyseur de `python-multipart`**, et non `UploadFile` de FastAPI, qui reçoit toute la requête avant de rendre la main. Chaque morceau est compté, haché et écrit dans un fichier temporaire. La réception s'arrête dès que la limite est dépassée (413), et une taille annoncée trop grande (`Content-Length`) est refusée sans rien lire.
 2. **Mémoire bornée** : environ 1 Mo de tampon, quelle que soit la taille du fichier (mesuré : 1,1 Mo pour 315 Mo ; serveur réel inchangé pour 400 Mo). Le hachage et l'écriture tournent dans un fil séparé, pour ne pas bloquer les autres requêtes.
-3. **L'authentification et le jeton CSRF sont vérifiés avant de lire le corps** : un envoi non autorisé ne consomme ni disque ni temps de calcul.
+3. **L'authentification et le jeton CSRF sont vérifiés avant de lire le corps** : un envoi non autorisé ne consomme ni disque ni temps de calcul. La transaction de lecture ouverte par ces vérifications est terminée avant la réception, pour ne pas occuper une connexion à la base pendant tout l'envoi.
+3 bis. **Un envoi n'est accepté que complet** : l'analyseur doit avoir vu la fin de la partie fichier et la frontière finale du formulaire. Un corps tronqué (connexion coupée) est refusé (400) ; sans ce contrôle, un fichier partiel serait enregistré comme preuve. Un formulaire mal formé donne aussi 400, pas 500. Le titre refuse les caractères de contrôle.
 4. **Le fichier n'est jamais interprété.** Le nom d'origine et le type déclaré sont conservés comme informations, nettoyés (dernier segment du chemin, caractères de contrôle retirés, longueur bornée), et ne servent ni de chemin ni à décider d'un traitement. Le contrôle du type réel viendra en phase 5.
 
 ### Création
 
-5. **Deux transactions.** La preuve est d'abord enregistrée à l'état `PROCESSING`. Ensuite, le stockage du fichier, l'enregistrement du fichier, de l'empreinte (`source = SERVER`) et du premier événement, puis le passage à `HASHED` forment une seule transaction. En cas d'échec, la preuve passe à `FAILED` (avec une ligne `ERROR` dans `access_logs`), aucune ligne de fichier, d'empreinte ou d'événement ne reste, et le fichier temporaire est supprimé. Un envoi refusé pendant la réception (413, formulaire invalide) ne crée aucune ligne.
+5. **Vérification après copie.** L'original est relu dans le stockage et son empreinte recalculée ; elle doit être identique à celle de la réception (`digests_match`), sinon le dépôt échoue. `HASHED` garantit donc que le fichier conservé est exactement celui qui a été haché.
+5 bis. **Deux transactions.** La preuve est d'abord enregistrée à l'état `PROCESSING`. Ensuite, le stockage du fichier, l'enregistrement du fichier, de l'empreinte (`source = SERVER`) et du premier événement, puis le passage à `HASHED` forment une seule transaction. En cas d'échec, la preuve passe à `FAILED` (avec une ligne `ERROR` dans `access_logs`), aucune ligne de fichier, d'empreinte ou d'événement ne reste, et le fichier temporaire est supprimé. Un envoi refusé pendant la réception (413, formulaire invalide) ne crée aucune ligne.
 6. **Isolation des organisations** : toutes les lectures passent par une seule requête filtrée sur l'organisation courante. Une preuve d'une autre organisation et une preuve inexistante donnent la même réponse 404.
 
 ### Chaîne de possession, format v1
@@ -33,4 +35,5 @@ Date : 2026-11-13 · Statut : accepté · Issue : #5 (et fondation de l'issue #7
 - Changer les champs hachés exigera un nouveau format (`veritas-custody-v2`), jamais une modification de la v1.
 - L'issue #7 ajoutera la vérification de la chaîne, les tests d'altération (modification, suppression, réordonnancement) et un test d'insertions concurrentes.
 - `UPLOAD_TEMP_DIR` doit pouvoir contenir `MAX_UPLOAD_SIZE_MB` par dépôt simultané.
+- En cas d'échec, la cause est journalisée côté serveur avec la clé du fichier éventuellement stocké sans référence (jamais supprimé), et le marquage `FAILED` est protégé contre une seconde panne.
 - Les tests HTTP ne peuvent pas mesurer la mémoire : le `TestClient` de Starlette lit tout le corps avant de l'envoyer. La mesure se fait au niveau ASGI (`tests/test_upload.py`).
