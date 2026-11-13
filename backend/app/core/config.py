@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # Taille maximale d'un fichier téléversé, en mégaoctets (document de référence : 500 Mo).
     max_upload_size_mb: int = 500
 
+    # Dossier des fichiers temporaires pendant un téléversement (None = dossier système).
+    # Doit pouvoir contenir MAX_UPLOAD_SIZE_MB par dépôt simultané.
+    upload_temp_dir: Path | None = None
+
     # Stockage des fichiers originaux : « local » (disque) ou « s3 » (compatible S3).
     storage_backend: Literal["local", "s3"] = "local"
     # Dossier du stockage local. Par défaut hors du dépôt, dans le dossier personnel.

@@ -8,18 +8,15 @@ import hashlib
 import logging
 import time
 import uuid
-from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from app.auth import security
 from app.auth.cookies import CSRF_HEADER, csrf_cookie_name, session_cookie_name
 from app.auth.csrf import CSRF_EXEMPT_PATHS
 from app.core.config import get_settings
-from app.database.session import get_db
 from app.main import app
 
 pytestmark = pytest.mark.integration
@@ -27,30 +24,6 @@ pytestmark = pytest.mark.integration
 PASSWORD = "correct horse battery staple"
 WRONG_PASSWORD = "mauvais mot de passe"
 LOGIN = "/api/v1/auth/login"
-
-
-@pytest.fixture
-def db_session(app_engine) -> Iterator[Session]:
-    with app_engine.connect() as connection:
-        transaction = connection.begin()
-        session = Session(
-            bind=connection,
-            join_transaction_mode="create_savepoint",
-            autoflush=False,
-            expire_on_commit=False,
-        )
-        yield session
-        session.close()
-        transaction.rollback()
-
-
-@pytest.fixture
-def api(db_session: Session) -> Iterator[TestClient]:
-    app.dependency_overrides[get_db] = lambda: db_session
-    # HTTPS : les cookies Secure (hors développement) ne sont renvoyés qu'en HTTPS.
-    with TestClient(app, base_url="https://testserver") as client:
-        yield client
-    app.dependency_overrides.clear()
 
 
 def _email() -> str:
