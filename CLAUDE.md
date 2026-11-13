@@ -117,7 +117,7 @@ Règles entre modules : les routes appellent des services ; `crypto` ne dépend 
   1. ~~Modèles ORM SQLAlchemy correspondant à la migration 0001.~~ Fait.
      Migration 0002 : rôle applicatif à privilèges minimaux (correction n° 5 du document de référence). Fait.
   2. ~~Authentification minimale~~ Fait (ADR-0003). Routes protégées : dépendances `CurrentUser` / `CurrentOrganization` (`app/auth/dependencies.py`). La garde CSRF s'applique à tout `/api/v1` ; une nouvelle exemption s'ajoute à `CSRF_EXEMPT_PATHS` avec une justification.
-  3. Stockage objet : interface `Storage` + implémentation disque local pour le dev, puis S3 (MinIO dans Docker Compose).
+  3. ~~Stockage objet~~ Fait (ADR-0004) : `get_storage()` dans `app/storage/` ; clés `new_storage_key()` uniquement ; un fichier n'est jamais réécrit. Pas de serveur S3 dans Docker Compose (MinIO n'est plus distribué) : disque local en dev, S3 géré au pilote.
   4. `POST /api/v1/evidence` : réception en flux vers un fichier temporaire, limite de taille, SHA-256, stockage, premier événement de possession, état `HASHED`.
   5. Mode empreinte seule.
   6. Canonicalisation RFC 8785 et chaîne de possession, avec tests (modification, suppression, réordonnancement, rupture).
