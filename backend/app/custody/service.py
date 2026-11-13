@@ -25,6 +25,9 @@ class CustodyEventType(StrEnum):
     HASH_DECLARED = "HASH_DECLARED"
     # Un jeton d'horodatage RFC 3161 vérifié VALID a été rattaché à la preuve.
     TIMESTAMP_ATTACHED = "TIMESTAMP_ATTACHED"
+    # La tête de chaîne a été horodatée par la TSA (ancrage). Cet événement est ajouté
+    # après l'ancrage : il n'est couvert que par l'ancrage suivant.
+    CHAIN_ANCHORED = "CHAIN_ANCHORED"
 
 
 def append_event(

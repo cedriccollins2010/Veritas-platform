@@ -35,7 +35,7 @@ Date : 2026-11-13 · Statut : accepté · Issues : #5, #7 (format révisé par l
 ## Conséquences
 
 - Changer les champs hachés exigera un nouveau format (`veritas-custody-v2`), jamais une modification de la v1.
-- Limite connue : supprimer les derniers événements laisse une chaîne cohérente. L'ancrage de la tête de chaîne par la TSA à l'export (phase 3) la détectera.
+- Limite connue : supprimer les derniers événements laisse une chaîne cohérente. **Fermée par l'ancrage de la tête de chaîne (ADR-0011)**, jusqu'au numéro ancré.
 - Le verrou `SELECT ... FOR UPDATE` est indispensable : sans lui, 14 à 17 ajouts sur 20 simultanés échouent sur le même numéro de séquence (test de concurrence).
 - `UPLOAD_TEMP_DIR` doit pouvoir contenir `MAX_UPLOAD_SIZE_MB` par dépôt simultané.
 - En cas d'échec, la cause est journalisée côté serveur avec la clé du fichier éventuellement stocké sans référence (jamais supprimé), et le marquage `FAILED` est protégé contre une seconde panne.

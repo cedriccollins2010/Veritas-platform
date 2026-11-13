@@ -185,3 +185,52 @@ def verify_chain(events: Sequence[ChainEvent]) -> ChainVerification:
         previous = event
 
     return ChainVerification("FAIL" if errors else "PASS", len(events), errors)
+
+
+# --- Ancrage de la tête de chaîne ----------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AnchorVerification:
+    """Résultat de la vérification d'un ancrage.
+
+    PASS : la chaîne contient l'événement ancré et son empreinte est celle qui a été
+    horodatée. FAIL : événements supprimés ou chaîne réécrite. UNKNOWN : aucun ancrage
+    n'est fourni (la tête n'a pas été ancrée) — jamais présenté comme un PASS.
+    """
+
+    status: str  # "PASS", "FAIL" ou "UNKNOWN"
+    detail: str = ""
+
+    @property
+    def passed(self) -> bool:
+        return self.status == "PASS"
+
+
+def verify_anchor(
+    events: Sequence[ChainEvent],
+    anchored_sequence_number: int | None,
+    anchored_hash: str | None,
+) -> AnchorVerification:
+    """Vérifie que la chaîne `events` est cohérente avec un ancrage.
+
+    L'ancrage dit : « l'événement n° k avait l'empreinte H, et H existait à la date du
+    jeton ». Si la chaîne n'a plus d'événement n° k (suppression en fin de chaîne), ou
+    si son empreinte n'est plus H (réécriture, même avec des empreintes recalculées),
+    l'ancrage le révèle. Cette fonction ne vérifie pas le jeton lui-même : c'est le rôle
+    de verify_timestamp_token, avec H comme empreinte attendue.
+    """
+    if anchored_sequence_number is None or anchored_hash is None:
+        return AnchorVerification("UNKNOWN", "La tête de chaîne n'a pas été ancrée.")
+    anchored = next((e for e in events if e.sequence_number == anchored_sequence_number), None)
+    if anchored is None:
+        return AnchorVerification(
+            "FAIL",
+            f"L'événement ancré n° {anchored_sequence_number} est absent : "
+            "des événements ont été supprimés.",
+        )
+    if not _same_digest(anchored.event_hash, anchored_hash):
+        return AnchorVerification(
+            "FAIL", "L'empreinte de l'événement ancré ne correspond pas à l'ancrage."
+        )
+    return AnchorVerification("PASS")

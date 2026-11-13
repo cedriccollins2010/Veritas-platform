@@ -3,6 +3,7 @@
 import unicodedata
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -114,3 +115,15 @@ class HashOnlyRequest(BaseModel):
         if any(unicodedata.category(c)[0] == "C" for c in value):
             raise ValueError("caractères de contrôle interdits")
         return value.strip() or None
+
+
+class AnchorOut(BaseModel):
+    """Ancrage de la tête de chaîne : l'événement n° anchored_sequence_number avait
+    l'empreinte anchored_hash, horodatée par la TSA à generation_time."""
+
+    status: Literal["ANCHORED", "REUSED"]
+    timestamp_record_id: uuid.UUID
+    anchored_sequence_number: int
+    anchored_hash: str
+    tsa_name: str
+    generation_time: datetime | None

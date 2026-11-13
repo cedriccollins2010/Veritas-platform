@@ -24,6 +24,7 @@ class AuditAction(StrEnum):
     LOGOUT = "auth.logout"
     EVIDENCE_CREATE = "evidence.create"
     EVIDENCE_TIMESTAMP = "evidence.timestamp"
+    CHAIN_ANCHOR = "evidence.anchor"
 
 
 @dataclass(frozen=True)
