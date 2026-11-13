@@ -10,11 +10,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 
 from app.auth.cookies import CSRF_HEADER, csrf_cookie_name
 from app.core.config import get_settings
 from app.crypto.custody_chain import event_hash, event_payload
+from app.custody.models import CustodyEvent
+from app.evidence.models import Evidence, EvidenceFile, HashRecord
 from app.main import app
 from app.storage import get_storage
 from app.storage.local import LocalStorage
@@ -180,20 +182,23 @@ def test_upload_is_logged(api, user, db_session) -> None:
 # --- T11 : taille maximale -----------------------------------------------------------
 
 
-def _count(db_session, table: str) -> int:
-    return db_session.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()  # noqa: S608
+def _count(db_session, model, *conditions) -> int:
+    """Nombre de lignes, par une requête SQLAlchemy (aucun SQL construit à la main)."""
+    query = select(func.count()).select_from(model).where(*conditions)
+    return db_session.execute(query).scalar_one()
 
 
 def test_too_large_file_is_refused_without_leftovers(
     api, user, storage, upload_dir, db_session, monkeypatch
 ) -> None:
     monkeypatch.setattr(get_settings(), "max_upload_size_mb", 1)
-    before = {t: _count(db_session, t) for t in ("evidence", "evidence_files", "hash_records")}
+    models = (Evidence, EvidenceFile, HashRecord)
+    before = {model: _count(db_session, model) for model in models}
 
     response = _upload(api, b"\0" * (1024 * 1024 + 1))
 
     assert response.status_code == 413
-    assert {t: _count(db_session, t) for t in before} == before
+    assert {model: _count(db_session, model) for model in models} == before
     assert _stored_files(storage) == []
     assert list(upload_dir.iterdir()) == []
 
@@ -284,14 +289,8 @@ def test_storage_failure_marks_evidence_failed(api, tmp_path, upload_dir, db_ses
         text("SELECT status FROM evidence WHERE id = :i"), {"i": evidence_id}
     ).scalar_one()
     assert status == "FAILED"
-    for table in ("evidence_files", "custody_events"):
-        assert (
-            db_session.execute(
-                text(f"SELECT count(*) FROM {table} WHERE evidence_id = :i"),  # noqa: S608
-                {"i": evidence_id},
-            ).scalar_one()
-            == 0
-        )
+    for model in (EvidenceFile, CustodyEvent):
+        assert _count(db_session, model, model.evidence_id == uuid.UUID(evidence_id)) == 0
     assert list(upload_dir.iterdir()) == []
     assert api.get(f"{EVIDENCE}/{evidence_id}").json()["status"] == "FAILED"
 
