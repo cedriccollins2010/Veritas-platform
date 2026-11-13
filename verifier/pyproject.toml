@@ -25,10 +25,14 @@ dependencies = [
 
 [project.optional-dependencies]
 # Outils de développement, mêmes versions que backend/requirements-dev.txt.
-dev = ["pytest==9.2.0", "ruff==0.17.4"]
+dev = ["pytest==9.2.0", "ruff==0.17.4", "jsonschema==4.26.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# Schémas JSON du manifeste, partie de la spécification publique.
+veritas_verifier = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

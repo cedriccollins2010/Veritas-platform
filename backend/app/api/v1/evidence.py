@@ -320,8 +320,8 @@ def get_evidence_events(
 def get_evidence_manifest(
     evidence_id: uuid.UUID, membership: CurrentOrganization, db: Db, storage: StorageDep
 ) -> Response:
-    """Manifeste JSON 1.1 du dossier de preuve (schéma : documentation/api/
-    manifest-v1.1.schema.json), publié sous sa forme canonique RFC 8785 : deux appels sur
+    """Manifeste JSON 1.1 du dossier de preuve (schéma : veritas_verifier/
+    schemas/manifest-v1.1.schema.json), publié sous sa forme canonique RFC 8785 : deux appels sur
     le même dossier renvoient exactement les mêmes octets."""
     view = service.get_for_organization(db, membership.organization.id, evidence_id)
     if view is None:

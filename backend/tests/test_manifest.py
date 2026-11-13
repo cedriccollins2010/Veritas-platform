@@ -19,9 +19,8 @@ from app.main import app
 from app.storage import get_storage
 from app.storage.local import LocalStorage
 
-SCHEMA_DIR = Path(__file__).resolve().parents[2] / "documentation/api"
-SCHEMA_V1_0 = json.loads((SCHEMA_DIR / "manifest-v1.schema.json").read_text(encoding="utf-8"))
-SCHEMA = json.loads((SCHEMA_DIR / "manifest-v1.1.schema.json").read_text(encoding="utf-8"))
+SCHEMA_V1_0 = manifest_crypto.load_schema("1.0")
+SCHEMA = manifest_crypto.load_schema("1.1")
 PASSWORD = "correct horse battery staple"
 DIGEST = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 

@@ -3,8 +3,8 @@
 Le manifeste décrit tout ce qu'un tiers doit vérifier : la preuve, ses fichiers et leurs
 empreintes (avec leur origine), la chaîne de possession complète et sa tête, et les
 versions des outils, et (depuis 1.1) les jetons d'horodatage vérifiés et l'ancrage de la
-tête de chaîne. Schéma : documentation/api/manifest-v1.1.schema.json (le schéma 1.0 reste
-publié tel quel : documentation/api/manifest-v1.schema.json).
+tête de chaîne. Schéma : verifier/src/veritas_verifier/schemas/manifest-v1.1.schema.json (le
+schéma 1.0 reste publié tel quel, à côté).
 
 Règle : le manifeste est une fonction de l'état enregistré, et de lui seul. Il ne contient
 ni date de génération ni valeur aléatoire : deux exports du même dossier sont identiques

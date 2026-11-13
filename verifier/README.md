@@ -13,10 +13,12 @@ VERITAS transforme un fichier en dossier de preuve numérique. Le dossier contie
 | `custody_chain` | Format `veritas-custody-v1` : `H(n) = SHA-256(H(n-1) ‖ JCS(E(n)))`, `verify_chain`, `verify_anchor` |
 | `manifest` | Empreinte du manifeste (`manifest_digest`) |
 | `timestamp_verification` | Vérification complète d'un jeton RFC 3161 : un résultat par contrôle, `UNKNOWN` pour la révocation hors ligne |
+| `passport` | Archive `veritas-passport-v1` : noms autorisés, entrées attendues, écriture déterministe |
+| `schemas/` | Schémas JSON du manifeste (1.0 et 1.1) |
 
-Toutes les fonctions sont **pures** : elles n'utilisent ni base de données, ni réseau, ni horloge système. Les racines de confiance sont passées en argument, jamais lues dans le dossier vérifié.
+Les fonctions de vérification sont **pures** : elles n'utilisent ni base de données, ni réseau, ni horloge système. Seul `write_passport` écrit, dans le fichier qu'on lui donne. Les racines de confiance sont passées en argument, jamais lues dans le dossier vérifié.
 
-La commande `veritas verify` et la spécification du passeport de preuve arrivent dans les prochaines versions (issues #34 et #36).
+**Spécification :** [`SPECIFICATION.md`](SPECIFICATION.md) décrit le passeport de preuve et chaque contrôle, assez précisément pour écrire un autre vérificateur. Un passeport d'exemple, vérifiable à la main, est dans [`examples/passport-v1/`](examples/passport-v1/README.md). La commande `veritas verify` arrive avec l'issue #36.
 
 ## Installation et tests
 
