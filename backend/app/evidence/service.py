@@ -33,6 +33,7 @@ from app.evidence.models import (
 )
 from app.evidence.upload import ReceivedUpload
 from app.storage import Storage, new_storage_key
+from app.timestamp.models import TimestampRecord
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,8 @@ class EvidenceView:
     evidence: Evidence
     file: EvidenceFile | None
     hash_record: HashRecord | None
+    # Dernière tentative d'horodatage du fichier, s'il y en a une.
+    timestamp_record: "TimestampRecord | None" = None
 
 
 def create_from_upload(
@@ -290,7 +293,7 @@ def list_for_organization(
         .limit(limit)
         .offset(offset)
     ).all()
-    return [EvidenceView(*row) for row in rows]
+    return _with_timestamps(db, [EvidenceView(*row) for row in rows])
 
 
 def get_for_organization(
@@ -299,4 +302,15 @@ def get_for_organization(
     """None si la preuve n'existe pas OU appartient à une autre organisation : l'appelant
     répond 404 dans les deux cas, sans révéler qu'un identifiant existe ailleurs."""
     row = db.execute(_views_query(organization_id).where(Evidence.id == evidence_id)).first()
-    return EvidenceView(*row) if row else None
+    return _with_timestamps(db, [EvidenceView(*row)])[0] if row else None
+
+
+def _with_timestamps(db: Session, views: list[EvidenceView]) -> list[EvidenceView]:
+    # Import local : timestamping dépend de ce module (EvidenceView).
+    from app.evidence.timestamping import latest_file_timestamps
+
+    latest = latest_file_timestamps(db, [view.evidence.id for view in views])
+    return [
+        EvidenceView(view.evidence, view.file, view.hash_record, latest.get(view.evidence.id))
+        for view in views
+    ]

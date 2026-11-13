@@ -1,6 +1,7 @@
 """Moteur SQLAlchemy et dépendance FastAPI fournissant une session par requête."""
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine, text
@@ -31,6 +32,22 @@ def get_db() -> Iterator[Session]:
         yield session
     finally:
         session.close()
+
+
+@contextmanager
+def session_scope() -> Iterator[Session]:
+    """Session hors requête (tâche de fond), fermée à la sortie du bloc « with »."""
+    session = _session_factory()()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def get_session_scope() -> Callable[[], AbstractContextManager[Session]]:
+    """Dépendance FastAPI : fabrique de sessions pour les tâches de fond (la session de
+    la requête est fermée quand la tâche s'exécute)."""
+    return session_scope
 
 
 def database_is_reachable(session: Session) -> bool:

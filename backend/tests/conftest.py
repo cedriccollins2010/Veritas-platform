@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from contextlib import nullcontext
 
 import pytest
 from fastapi.testclient import TestClient
@@ -48,14 +49,38 @@ def db_session(app_engine) -> Iterator[Session]:
         transaction.rollback()
 
 
+class UnavailableTsa:
+    """TSA par défaut des tests : toujours indisponible, immédiatement (aucun appel
+    réseau, aucune attente). Les tests d'horodatage fournissent la TSA locale OpenSSL."""
+
+    name = "TSA indisponible (tests)"
+    url = "https://tsa.invalid/tsr"
+
+    def request_timestamp(self, digest_hex: str):
+        from app.timestamp.provider import TsaUnavailableError
+
+        raise TsaUnavailableError("TSA désactivée dans les tests.")
+
+
 @pytest.fixture
 def api(db_session: Session) -> Iterator[TestClient]:
-    """Client HTTP de l'API branché sur db_session."""
-    app.dependency_overrides[get_db] = lambda: db_session
+    """Client HTTP de l'API branché sur db_session (y compris pour les tâches de fond)."""
+    from app.database.session import get_session_scope
+    from app.timestamp.roots import get_trust_roots
+    from app.timestamp.service import get_timestamp_provider
+
+    overrides = {
+        get_db: lambda: db_session,
+        get_session_scope: lambda: lambda: nullcontext(db_session),
+        get_timestamp_provider: lambda: UnavailableTsa(),
+        get_trust_roots: lambda: (),
+    }
+    app.dependency_overrides.update(overrides)
     # HTTPS : les cookies Secure (hors développement) ne sont renvoyés qu'en HTTPS.
     with TestClient(app, base_url="https://testserver") as client:
         yield client
-    app.dependency_overrides.pop(get_db, None)
+    for dependency in overrides:
+        app.dependency_overrides.pop(dependency, None)
 
 
 def _database_available() -> bool:

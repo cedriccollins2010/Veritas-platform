@@ -3,7 +3,16 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -17,8 +26,8 @@ from app.custody.schemas import (
     CustodyEventOut,
     EvidenceEventsOut,
 )
-from app.database.session import get_db
-from app.evidence import service
+from app.database.session import get_db, get_session_scope
+from app.evidence import service, timestamping
 from app.evidence.schemas import EvidenceOut, HashOnlyRequest
 from app.evidence.upload import (
     InvalidUploadError,
@@ -29,11 +38,42 @@ from app.evidence.upload import (
 )
 from app.reports.manifest import EvidenceNotExportableError, build_manifest
 from app.storage import Storage, get_storage
+from app.timestamp.roots import get_trust_roots
+from app.timestamp.service import get_timestamp_provider
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 
 Db = Annotated[Session, Depends(get_db)]
 StorageDep = Annotated[Storage, Depends(get_storage)]
+ProviderDep = Annotated[object, Depends(get_timestamp_provider)]
+RootsDep = Annotated[tuple, Depends(get_trust_roots)]
+SessionScopeDep = Annotated[object, Depends(get_session_scope)]
+
+
+def _schedule_timestamp(
+    background: BackgroundTasks,
+    evidence_id,
+    *,
+    session_scope,
+    provider,
+    storage,
+    roots,
+    actor_id,
+    client,
+) -> None:
+    """Horodatage lancé après l'envoi de la réponse (la preuve est déjà enregistrée)."""
+    if get_settings().timestamp_on_deposit:
+        background.add_task(
+            timestamping.timestamp_in_background,
+            session_scope,
+            evidence_id,
+            provider=provider,
+            storage=storage,
+            trust_roots=roots,
+            actor_id=actor_id,
+            client=client,
+        )
+
 
 NOT_FOUND = "Preuve introuvable."
 
@@ -67,6 +107,10 @@ async def create_evidence(
     db: Db,
     storage: StorageDep,
     client: Client,
+    background: BackgroundTasks,
+    provider: ProviderDep,
+    roots: RootsDep,
+    session_scope: SessionScopeDep,
 ) -> EvidenceOut:
     """Dépose un fichier : il est haché (SHA-256) pendant la réception, stocké, et la
     preuve est créée à l'état HASHED avec son premier événement de possession.
@@ -110,6 +154,16 @@ async def create_evidence(
         ) from None
     finally:
         upload.discard()
+    _schedule_timestamp(
+        background,
+        view.evidence.id,
+        session_scope=session_scope,
+        provider=provider,
+        storage=storage,
+        roots=roots,
+        actor_id=user_id,
+        client=client,
+    )
     return EvidenceOut.from_view(view)
 
 
@@ -124,6 +178,11 @@ def create_hash_only_evidence(
     membership: CurrentOrganization,
     db: Db,
     client: Client,
+    storage: StorageDep,
+    background: BackgroundTasks,
+    provider: ProviderDep,
+    roots: RootsDep,
+    session_scope: SessionScopeDep,
 ) -> EvidenceOut:
     """Mode « empreinte seule » : enregistre l'empreinte SHA-256 d'un fichier qui reste
     sous la garde de l'analyste (image disque, capture réseau). Le fichier n'est pas
@@ -147,7 +206,69 @@ def create_hash_only_evidence(
         organization_id=membership.organization.id,
         client=client,
     )
+    _schedule_timestamp(
+        background,
+        view.evidence.id,
+        session_scope=session_scope,
+        provider=provider,
+        storage=storage,
+        roots=roots,
+        actor_id=user.id,
+        client=client,
+    )
     return EvidenceOut.from_view(view)
+
+
+@router.post(
+    "/{evidence_id}/timestamp",
+    response_model=EvidenceOut,
+    responses={
+        409: {"description": "Déjà certifiée, ou état qui ne permet pas l'horodatage"},
+        502: {"description": "Jeton reçu mais refusé par la vérification"},
+        503: {"description": "TSA indisponible : réessayer plus tard"},
+    },
+)
+def timestamp_evidence(
+    evidence_id: uuid.UUID,
+    user: CurrentUser,
+    membership: CurrentOrganization,
+    db: Db,
+    storage: StorageDep,
+    provider: ProviderDep,
+    roots: RootsDep,
+    client: Client,
+) -> EvidenceOut:
+    """Relance l'horodatage d'une preuve en attente ou dont la tentative a échoué."""
+    if service.get_for_organization(db, membership.organization.id, evidence_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    try:
+        attempt = timestamping.timestamp_evidence(
+            db,
+            evidence_id,
+            provider=provider,
+            storage=storage,
+            trust_roots=roots,
+            actor_id=user.id,
+            client=client,
+        )
+    except timestamping.NotTimestampableError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(error)) from None
+    outcome = timestamping.TimestampOutcome
+    if attempt.outcome is outcome.ALREADY_CERTIFIED:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Preuve déjà certifiée.")
+    if attempt.outcome is outcome.TSA_UNAVAILABLE:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Autorité d'horodatage indisponible : la preuve reste en attente.",
+        )
+    if attempt.outcome is outcome.TOKEN_INVALID:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Jeton d'horodatage refusé par la vérification : la preuve reste en attente.",
+        )
+    return EvidenceOut.from_view(
+        service.get_for_organization(db, membership.organization.id, evidence_id)
+    )
 
 
 @router.get("", response_model=list[EvidenceOut])

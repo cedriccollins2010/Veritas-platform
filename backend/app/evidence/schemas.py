@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.evidence.models import EvidenceStatus, HashSource, StorageMode
 from app.evidence.service import EvidenceView
+from app.timestamp.models import TimestampValidationStatus
 
 
 class FileOut(BaseModel):
@@ -30,6 +31,16 @@ class HashOut(BaseModel):
     calculated_at: datetime
 
 
+class TimestampOut(BaseModel):
+    """Dernière tentative d'horodatage. Seul status = VALID signifie un jeton vérifié."""
+
+    status: TimestampValidationStatus
+    tsa_name: str
+    generation_time: datetime | None
+    attempted_at: datetime
+    error_detail: str | None
+
+
 class EvidenceOut(BaseModel):
     id: uuid.UUID
     title: str
@@ -38,6 +49,7 @@ class EvidenceOut(BaseModel):
     updated_at: datetime
     file: FileOut | None
     hash: HashOut | None
+    timestamp: TimestampOut | None = None
 
     @classmethod
     def from_view(cls, view: EvidenceView) -> "EvidenceOut":
@@ -66,6 +78,15 @@ class EvidenceOut(BaseModel):
                 calculated_at=hash_record.calculated_at,
             )
             if hash_record
+            else None,
+            timestamp=TimestampOut(
+                status=TimestampValidationStatus(view.timestamp_record.validation_status),
+                tsa_name=view.timestamp_record.tsa_name,
+                generation_time=view.timestamp_record.generation_time,
+                attempted_at=view.timestamp_record.created_at,
+                error_detail=view.timestamp_record.error_detail,
+            )
+            if view.timestamp_record
             else None,
         )
 

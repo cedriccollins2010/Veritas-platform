@@ -226,6 +226,7 @@ def test_failed_evidence_has_no_manifest(logged_in, db_session) -> None:
     db_session.execute(
         text("UPDATE evidence SET status = 'FAILED' WHERE id = :i"), {"i": evidence_id}
     )
+    db_session.expire_all()  # la session de test partagée garderait l'ancien état en mémoire
     response = _manifest(logged_in, evidence_id)
     assert response.status_code == 409
 
