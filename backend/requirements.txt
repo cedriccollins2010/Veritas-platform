@@ -3,16 +3,16 @@
 fastapi==0.162.5
 uvicorn[standard]==0.54.0
 SQLAlchemy==2.1.8
-psycopg[binary]==3.3.8
+psycopg[binary]==3.3.9
 alembic==1.20.1
 pydantic==2.14.3
-pydantic-settings==2.16.2
+pydantic-settings==2.16.3
 python-multipart==0.0.33
 cryptography==50.0.2
 # Hachage des mots de passe (Argon2id, RFC 9106). Voir app/auth/security.py.
 argon2-cffi==25.1.0
 # Stockage compatible S3 (SDK officiel AWS, fonctionne avec tout service compatible S3).
-boto3==1.43.121
+boto3==1.44.2
 # Canonicalisation JSON RFC 8785 pour la chaîne de possession (Trail of Bits, sans dépendance).
 rfc8785==0.1.4
 # Horodatage RFC 3161 : analyse et vérification des jetons (>= 1.0.3, CVE-2025-52556).
