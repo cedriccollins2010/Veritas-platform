@@ -1,7 +1,7 @@
 # Outils de développement et de test (non installés dans l'image de production).
 -r requirements.txt
 pytest==9.2.0
-ruff==0.17.4
+ruff==0.17.6
 # Faux service S3 en mémoire, pour tester S3Storage sans serveur.
 moto[s3]==5.2.5
 # Validation du manifeste contre son schéma JSON (documentation/api/manifest-v1.schema.json).
